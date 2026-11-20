@@ -8,7 +8,7 @@ Apple-native, restrained. The tool disappears into the task. Expression is conce
 
 ## Name
 
-Displayed everywhere as **YuE² Studio**: the 2 is a superscript, about 62% size, bold, in the accent colour. Bundle and file names stay `YuE2 Studio`.
+Displayed everywhere as **YuE² Studio**: the 2 is a superscript, about 62% size, bold, in the accent colour. The app file is `YuE² Studio.app`. Bundle id, data folder (`YuE2 Studio`) and dmg file name stay ASCII.
 
 ## Tokens
 

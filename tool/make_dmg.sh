@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Release build -> ad-hoc signed "YuE2 Studio.app" -> drag-and-drop dmg in dist/YuE2-Studio-<version>.dmg.
+# Release build -> ad-hoc signed "YuE² Studio.app" -> drag-and-drop dmg in dist/YuE2-Studio-<version>.dmg.
 # Usage: tool/make_dmg.sh        (macOS only; publishes nothing)
 set -euo pipefail
 
@@ -9,14 +9,14 @@ cd "$ROOT"
 
 VERSION="$(sed -n 's/^version: *\([0-9][0-9.]*\).*/\1/p' pubspec.yaml | head -1)"
 [[ -n "$VERSION" ]] || { echo "cannot read version from pubspec.yaml" >&2; exit 1; }
-NAME="YuE2 Studio"
+NAME="YuE² Studio"
 DMG="dist/YuE2-Studio-$VERSION.dmg"
 
 [[ -x assets/uv/uv ]] || tool/fetch_uv.sh   # the bundled uv is gitignored: the release needs it
 fvm flutter pub get
 fvm flutter build macos --release
 
-# PRODUCT_NAME should give "YuE2 Studio.app"; fall back to whatever single .app the build produced.
+# PRODUCT_NAME should give "YuE² Studio.app"; fall back to whatever single .app the build produced.
 PRODUCTS="build/macos/Build/Products/Release"
 APP="$PRODUCTS/$NAME.app"
 if [[ ! -d "$APP" ]]; then

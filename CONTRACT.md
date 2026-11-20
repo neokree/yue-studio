@@ -15,7 +15,7 @@ Hard deadline: **today 16:00**. Speed is the priority of this document.
 
 | Topic | Decision |
 |---|---|
-| Name | "YuE2 Studio" in bundle and file names; displayed as "YuE² Studio" with the 2 as a superscript. About screen and README say: unofficial client, not affiliated with the YuE2 authors. |
+| Name | Displayed and app file name: "YuE² Studio" with the 2 as a superscript (owner decision, 2026-11-20 14:35). Bundle id `com.neokree.yue2studio`, data dir `YuE2 Studio` and the dmg file name stay ASCII. About screen and README say: unofficial client, not affiliated with the YuE2 authors. |
 | Logo | The mark in `reference/yue2-logo.webp` (circle + notes, terracotta). Redraw it as a vector path in code. |
 | Platforms | Ships: macOS 14+, Apple Silicon only. Linux build exists only for tests. |
 | System requirements | Minimum: Apple Silicon, macOS 14, 16 GB memory, 15 GB free disk, network on first run. Recommended: 24 GB memory, 25 GB free. Enforced by the setup preflight (section 3.1). |

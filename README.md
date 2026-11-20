@@ -34,7 +34,7 @@ On Macs with less than 24 GB of memory, the app unloads the song model before a 
 ## Install
 
 1. Open `YuE2-Studio-<version>.dmg`.
-2. Drag **YuE2 Studio** into the **Applications** folder.
+2. Drag **YuE² Studio** into the **Applications** folder.
 3. Open the app from Applications. See the next section the first time.
 
 ## Opening the app the first time
@@ -45,14 +45,14 @@ The app is ad-hoc signed and is not notarized by Apple. macOS blocks it the firs
 
 1. Try to open the app once. macOS shows a warning.
 2. Open **System Settings**, then **Privacy & Security**.
-3. Find the message about "YuE2 Studio" and click **Open Anyway**. Enter your password if asked.
+3. Find the message about "YuE² Studio" and click **Open Anyway**. Enter your password if asked.
 
 **Right-click:** on some macOS versions you can right-click the app in Applications and choose **Open**. If that does not work, use the System Settings steps.
 
 **Terminal:** this removes the quarantine flag that macOS adds to downloaded apps. Run it only on the copy you installed from the dmg.
 
 ```
-xattr -dr com.apple.quarantine "/Applications/YuE2 Studio.app"
+xattr -dr com.apple.quarantine "/Applications/YuE² Studio.app"
 ```
 
 ## First run
@@ -78,7 +78,7 @@ Your songs are in the `library` folder inside it.
 ## Uninstall
 
 1. Quit the app.
-2. Delete **YuE2 Studio** from Applications.
+2. Delete **YuE² Studio** from Applications.
 3. Delete the folder `~/Library/Application Support/YuE2 Studio`.
 
 Step 3 also deletes all your songs and the models. Export the songs you want to keep before you delete the folder.

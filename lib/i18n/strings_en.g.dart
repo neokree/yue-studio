@@ -61,8 +61,8 @@ class Translations$app$en {
 
 	// Translations
 
-	/// en: 'YuE2 Studio'
-	String get title => 'YuE2 Studio';
+	/// en: 'YuE² Studio'
+	String get title => 'YuE² Studio';
 
 	/// en: 'Unofficial client. Not affiliated with the YuE2 authors.'
 	String get unofficial => 'Unofficial client. Not affiliated with the YuE2 authors.';
@@ -830,7 +830,7 @@ class Translations$shell$time$en {
 extension on Translations {
 	dynamic _flatMapFunction(String path) {
 		return switch (path) {
-			'app.title' => 'YuE2 Studio',
+			'app.title' => 'YuE² Studio',
 			'app.unofficial' => 'Unofficial client. Not affiliated with the YuE2 authors.',
 			'nav.create' => 'Create',
 			'nav.cover' => 'Cover',

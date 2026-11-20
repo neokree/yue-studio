@@ -1,7 +1,7 @@
 // Application-level settings for the Runner target.
 
 // The application's name (bundle and file name, also the About panel name). Displayed in the UI as "YuE² Studio".
-PRODUCT_NAME = YuE2 Studio
+PRODUCT_NAME = YuE² Studio
 
 // The application's bundle identifier
 PRODUCT_BUNDLE_IDENTIFIER = com.neokree.yue2studio
