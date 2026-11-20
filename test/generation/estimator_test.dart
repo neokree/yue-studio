@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yue2_studio/generation/estimator.dart';
@@ -19,22 +20,42 @@ void main() {
   double prog(GenerationEstimator e, String s, int d, int? t, {Duration? el}) =>
       e.progressFor(stage: s, done: d, total: t, elapsedInStage: el ?? none, lyrics: songLyrics);
 
-  test('reference lyrics are a 70 s song', () async {
+  String lyricsOf(int lines) => '[verse]\n${List.generate(lines, (i) => 'line $i').join('\n')}\n[chorus]\n';
+
+  test('length model: 8 lines -> 70 s, 33 lines -> ~174 s, instrumental -> 120 s, tags ignored', () async {
     final e = ref();
-    expect(e.expectedSeconds(lyrics: songLyrics), 70);
-    expect(e.expectedSeconds(lyrics: ''), 15);
+    expect(e.expectedSeconds(lyrics: songLyrics), closeTo(70, 0.5));
+    expect(e.expectedSeconds(lyrics: lyricsOf(33)), closeTo(174.3, 1));
+    expect(e.expectedSeconds(lyrics: ''), 120);
+    expect(e.expectedSeconds(lyrics: '[verse]\n[chorus]'), 120);
+    expect(e.expectedSeconds(lyrics: lyricsOf(200)), 300);
     expect(e.expectedSeconds(lyrics: 'a\nb', sourceSeconds: 95), 95, reason: 'covers use the source length');
   });
 
-  test('reference Mac: 2.3 s per audio second plus 20 s model load on the first job', () async {
+  test('reference Mac: 8 lines ~175 s with model load, ~155 s without; 33 lines ~875 s / ~855 s', () async {
     final e = ref();
     await e.load();
-    expect(e.estimate(lyrics: songLyrics).inSeconds, 181);
-    expect(e.speeds['nar']! / e.speeds.values.reduce((a, b) => a + b), closeTo(0.51, 1e-9));
+    expect(e.estimate(lyrics: songLyrics).inSeconds, inInclusiveRange(165, 185));
+    expect(e.estimate(lyrics: lyricsOf(33)).inSeconds, inInclusiveRange(800, 900));
+    final long = e.estimate(lyrics: lyricsOf(33)).inSeconds;
     e.modelLoaded = true;
-    expect(e.estimate(lyrics: songLyrics).inSeconds, 161);
-    expect(e.estimate(lyrics: songLyrics, plan: false).inSeconds, lessThan(161 - 17));
-    expect(e.estimate(lyrics: '', sourceSeconds: 70).inSeconds, lessThan(161), reason: 'a cover brings its own score');
+    expect(e.estimate(lyrics: songLyrics).inSeconds, inInclusiveRange(145, 165));
+    expect(e.estimate(lyrics: lyricsOf(33)).inSeconds, long - 20);
+    expect(e.estimate(lyrics: songLyrics, plan: false).inSeconds, lessThan(e.estimate(lyrics: songLyrics).inSeconds - 15));
+    expect(e.estimate(lyrics: '', sourceSeconds: 70).inSeconds, lessThan(e.estimate(lyrics: songLyrics).inSeconds), reason: 'a cover brings its own score');
+  });
+
+  test('stage curves are superlinear and match the two measured runs', () async {
+    final e = ref();
+    await e.load();
+    double sec(String s, double l) => e.coef[s]! * math.pow(l, stageExp[s]!);
+    expect(sec('abc', 70), closeTo(17, 0.5));
+    expect(sec('abc', 174.3), closeTo(92.4, 2));
+    expect(sec('semantic', 70), closeTo(56, 1));
+    expect(sec('semantic', 174.3), closeTo(262.4, 3));
+    expect(sec('nar', 70), closeTo(80, 4));
+    expect(sec('nar', 174.3), closeTo(482.5, 10));
+    expect(e.speeds['nar']!, closeTo(sec('nar', 70) / 70, 1e-9));
   });
 
   test('hardware prior scales with GPU cores, generation and memory', () {
@@ -62,23 +83,24 @@ void main() {
   test('progress is weighted by stage time and monotonic through a run', () async {
     final e = ref();
     await e.load();
-    // 181 s total: load 20, abc 17.71, semantic 56.35, nar 82.11, vae 4.83
+    final s = {for (final k in ['abc', 'semantic', 'nar', 'vae']) k: e.coef[k]! * math.pow(70, stageExp[k]!)};
+    final total = 20 + s.values.reduce((a, b) => a + b);
     expect(prog(e, 'load', 0, null), 0);
-    expect(prog(e, 'abc', 0, null), closeTo(20 / 181, 1e-3));
-    expect(prog(e, 'semantic', 0, null), closeTo(37.71 / 181, 1e-3));
-    expect(prog(e, 'nar', 0, 32), closeTo(94.06 / 181, 1e-3));
-    expect(prog(e, 'nar', 16, 32), closeTo((94.06 + 41.055) / 181, 1e-3));
-    expect(prog(e, 'vae', 0, 4), closeTo(176.17 / 181, 1e-3));
+    expect(prog(e, 'abc', 0, null), closeTo(20 / total, 1e-3));
+    expect(prog(e, 'semantic', 0, null), closeTo((20 + s['abc']!) / total, 1e-3));
+    expect(prog(e, 'nar', 0, 32), closeTo((20 + s['abc']! + s['semantic']!) / total, 1e-3));
+    expect(prog(e, 'nar', 16, 32), closeTo((20 + s['abc']! + s['semantic']! + s['nar']! / 2) / total, 1e-3));
+    expect(prog(e, 'vae', 0, 4), closeTo((total - s['vae']!) / total, 1e-3));
     expect(prog(e, 'vae', 4, 4), closeTo(1.0, 1e-9));
     final events = [
       ('load', 0, null, 0), ('load', 0, null, 19), ('abc', 25, null, 1), ('abc', 200, null, 8), ('abc', 340, null, 17),
-      ('semantic', 25, null, 1), ('semantic', 1500, null, 30), ('semantic', 3500, null, 56),
+      ('semantic', 25, null, 1), ('semantic', 900, null, 30), ('semantic', 1750, null, 56),
       ('nar', 1, 32, 1), ('nar', 15, 32, 40), ('nar', 32, 32, 82), ('vae', 1, 4, 1), ('vae', 4, 4, 4),
     ];
     var last = -1.0;
-    for (final (s, d, t, el) in events) {
-      final p = prog(e, s, d, t, el: Duration(seconds: el));
-      expect(p, greaterThanOrEqualTo(last), reason: '$s $d');
+    for (final (st, d, t, el) in events) {
+      final p = prog(e, st, d, t, el: Duration(seconds: el));
+      expect(p, greaterThanOrEqualTo(last), reason: '$st $d');
       last = p;
     }
   });
@@ -99,13 +121,14 @@ void main() {
     e.modelLoaded = true;
     Duration rem(String s, int d, int? t, int el) =>
         e.remainingFor(stage: s, done: d, total: t, elapsedInStage: Duration(seconds: el), lyrics: songLyrics);
-    expect(rem('abc', 0, null, 0).inSeconds, 161);
-    // nar half done in 41 s (as predicted): 41 + vae 4.8 left
-    expect(rem('nar', 16, 32, 41).inSeconds, closeTo(41 + 4.83, 1));
-    // twice as slow as predicted: half the stage took 82 s, so 82 + 2 * 4.83 left
-    expect(rem('nar', 16, 32, 82).inSeconds, closeTo(82 + 9.66, 1));
-    // semantic at the 1500th token after 20 s: 75 tok/s, 2000 left
-    expect(rem('semantic', 1500, null, 20).inSeconds, greaterThan(26));
+    final nar = e.coef['nar']! * 4900, vae = e.coef['vae']! * 70;
+    expect(rem('abc', 0, null, 0), e.estimate(lyrics: songLyrics));
+    // nar half done in half its predicted time: half of it + vae left
+    expect(rem('nar', 16, 32, (nar / 2).round()).inSeconds, closeTo(nar / 2 + vae, 1.5));
+    // twice as slow as predicted: the rest of nar, and vae, take twice as long
+    expect(rem('nar', 16, 32, nar.round()).inSeconds, closeTo(nar + 2 * vae, 1.5));
+    // semantic at 1750 * 0.4 tokens after 20 s: 35 tok/s, 1050 left
+    expect(rem('semantic', 700, null, 20).inSeconds, greaterThan(30));
     expect(rem('vae', 4, 4, 5).inSeconds, 0);
   });
 
@@ -122,10 +145,13 @@ void main() {
     expect(GenerationEstimator(tmp.path, probe: () async => Hardware.reference).runs, 0);
   });
 
-  test('stage fraction is the share of the current stage', () async {
+  test('stage fraction is the share of the current stage; token stages use the expected token count for L', () async {
     final e = ref();
     await e.load();
-    expect(e.stageFractionFor(stage: 'semantic', done: 1750, lyrics: songLyrics), closeTo(0.5, 1e-9)); // 50 tok/s * 70 s
+    expect(e.stageFractionFor(stage: 'semantic', done: 875, lyrics: songLyrics), closeTo(0.5, 0.01)); // 25 tok/s of audio * 70 s
+    expect(e.stageFractionFor(stage: 'semantic', done: 2180, lyrics: lyricsOf(33)), closeTo(0.5, 0.01)); // 4359 tokens at 174 s
+    expect(e.stageFractionFor(stage: 'abc', done: 170, lyrics: songLyrics), closeTo(0.5, 0.02)); // 340 tokens at 70 s
+    expect(e.stageFractionFor(stage: 'abc', done: 920, lyrics: lyricsOf(33)), closeTo(0.5, 0.02)); // 1847 tokens at 174 s
     expect(e.stageFractionFor(stage: 'nar', done: 8, total: 32, lyrics: songLyrics), 0.25);
   });
 
@@ -135,14 +161,15 @@ void main() {
     await e.record(
       stageSeconds: {'load': 22, 'abc': 17, 'semantic': 55, 'nar': 80, 'vae': 4},
       audioSeconds: 70,
-      tokens: {'abc': 340, 'semantic': 3500},
+      tokens: {'abc': 340, 'semantic': 1750},
     );
     expect(e.speeds['abc'], closeTo(17 / 70, 1e-9));
     expect(e.speeds['nar'], closeTo(80 / 70, 1e-9));
+    expect(e.coef['nar'], closeTo(80 / 4900, 1e-12));
     expect(e.loadSeconds, 22);
-    expect(e.tokensPerSecond['semantic'], 50);
+    expect(e.tokenCoef['semantic'], closeTo(25, 1e-9));
     expect(e.modelLoaded, isTrue);
-    expect(e.estimate(lyrics: songLyrics).inSeconds, 156, reason: '17+55+80+4, no load now');
+    expect(e.estimate(lyrics: songLyrics).inSeconds, closeTo(156, 1), reason: '17+55+80+4, no load now');
 
     await e.record(stageSeconds: {'nar': 100}, audioSeconds: 70); // second run: halfway
     expect(e.speeds['nar'], closeTo((80 / 70 + 100 / 70) / 2, 1e-9));
@@ -151,6 +178,26 @@ void main() {
     final again = GenerationEstimator(tmp.path, probe: () async => throw StateError('should be cached'));
     await again.load();
     expect(again.runs, 2);
-    expect(again.speeds['nar'], closeTo(e.speeds['nar']!, 1e-9));
+    expect(again.coef['nar'], closeTo(e.coef['nar']!, 1e-9));
   });
+
+  test('calibrating on a 70 s run still estimates a 174 s song within 20% of the measured 861 s', () async {
+    final e = ref();
+    await e.load();
+    await e.record(stageSeconds: {'load': 20, 'abc': 17, 'semantic': 56, 'nar': 88, 'vae': 3}, audioSeconds: 70);
+    final est = e.estimate(lyrics: lyricsOf(33)).inSeconds; // model already loaded: no load stage
+    expect(est, inInclusiveRange(861 * 0.8, 861 * 1.2));
+    // a purely linear model would have said 164 * 2.49 = 408 s
+  });
+
+  test('slower hardware scales every curve, a calibration replaces the scale', () async {
+    const slow = Hardware(mac: true, chip: 'Apple M1', memBytes: 16 << 30, perfCores: 4, gpuCores: 8);
+    final e = GenerationEstimator(Directory.systemTemp.createTempSync('yue2slow').path, probe: () async => slow);
+    await e.load();
+    final fast = ref();
+    await fast.load();
+    expect(e.coef['nar']! / fast.coef['nar']!, closeTo(priorWorkPerAudioSecond(slow) / refWork, 1e-9));
+    expect(e.estimate(lyrics: lyricsOf(33)), greaterThan(fast.estimate(lyrics: lyricsOf(33)) * 3));
+  });
+
 }

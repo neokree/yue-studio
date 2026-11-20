@@ -70,25 +70,42 @@ double priorWorkPerAudioSecond(Hardware hw) {
 
 const refWork = 2.3;
 
-/// Stage shares of the reference measurement (score, melody, sound, master).
-const stageShare = {'abc': 0.11, 'semantic': 0.35, 'nar': 0.51, 'vae': 0.03};
+/// Stage cost model on the reference Mac (M4 Pro 48 GB), cot=full: seconds = coef x L^exp for L seconds of audio.
+/// Fitted through two measured runs (70 s: abc 17, semantic 56, nar ~80, vae ~4; 174.3 s: abc 92.4, semantic 262.4,
+/// nar 482.5, vae 18). abc: p = ln(92.4/17)/ln(174.3/70) = 1.856; semantic: q = 1.693 (per-token speed drops as the
+/// sequence grows, 32 -> 16.6 tok/s); nar is attention over the whole song, so 2 (0.016 x L^2 = 78 s at 70, 486 s at 174);
+/// vae is chunked, so 1.
+const stageExp = {'abc': 1.856, 'semantic': 1.693, 'nar': 2.0, 'vae': 1.0};
+const stageCoef = {'abc': 0.0064, 'semantic': 0.0421, 'nar': 0.016, 'vae': 0.075};
+
+/// Expected token count of the token stages = coef x L^exp. abc tokens ~ 20 tok/s x abc time (340 at 70 s, 1847 at 174 s);
+/// semantic is linear, 25 tokens per second of audio (1750 at 70 s, 4359 at 174 s).
+const tokenExp = {'abc': 1.856, 'semantic': 1.0};
+const tokenCoefPrior = {'abc': 0.128, 'semantic': 25.0};
+
+/// Song length model: affine in the number of sung lines through (8 lines, 70 s) and (33 lines, 174.3 s). Section tags ignored.
+const _lenA = 36.6, _lenB = 4.17, _instrumentalSeconds = 120.0;
 
 /// Expected generation time and progress (design/DESIGN.md, "Time estimate").
 ///
-/// Everything is in "seconds of work per second of audio" per stage, so one number per stage is
-/// enough to estimate a new song, to weight the ring, and to recompute the time left.
+/// Time is not linear in the length L: each stage is coef x L^exp (see [stageExp]), the coefficients start from the
+/// reference Mac scaled by the hardware prior and are replaced by the user's own runs (the exponents stay).
 class GenerationEstimator {
   GenerationEstimator(this.dataDir, {HardwareProbe? probe}) : _probe = probe ?? probeHardware;
 
   final String dataDir;
   final HardwareProbe _probe;
 
-  /// Seconds of work per audio second, per stage.
-  Map<String, double> speeds = {for (final e in stageShare.entries) e.key: e.value * refWork};
+  /// Per-stage coefficient c of seconds = c x L^exp (this machine: prior x hardware scale, then calibrated).
+  Map<String, double> coef = {...stageCoef};
 
-  /// Tokens per audio second for the stages that report token counts only.
-  /// abc: 340 tokens for 70 s (measured); semantic is a first guess until the first run records it.
-  Map<String, double> tokensPerSecond = {'abc': 4.9, 'semantic': 50};
+  /// Per-stage coefficient of the expected token count (abc, semantic).
+  Map<String, double> tokenCoef = {...tokenCoefPrior};
+
+  /// Seconds of work per audio second at the 70 s reference length, per stage (what a typical song costs).
+  Map<String, double> get speeds => {for (final k in coef.keys) k: _secs(k, 70) / 70};
+
+  double _secs(String stage, double audio) => coef[stage]! * math.pow(audio, stageExp[stage]!);
 
   double loadSeconds = 20;
   double transcribePerSecond = 0.9; // 63 s for a ~70 s source
@@ -115,16 +132,17 @@ class GenerationEstimator {
       hardware = await _probe();
     }
     runs = (j['runs'] as num?)?.toInt() ?? 0;
-    final work = priorWorkPerAudioSecond(hardware);
-    speeds = {for (final e in stageShare.entries) e.key: e.value * work};
-    if (j['speeds'] is Map) {
-      for (final e in (j['speeds'] as Map).entries) {
-        if (speeds.containsKey(e.key) && e.value is num && e.value > 0) speeds[e.key as String] = (e.value as num).toDouble();
+    final scale = priorWorkPerAudioSecond(hardware) / refWork;
+    coef = {for (final e in stageCoef.entries) e.key: e.value * scale};
+    tokenCoef = {...tokenCoefPrior};
+    if (j['coef'] is Map) {
+      for (final e in (j['coef'] as Map).entries) {
+        if (coef.containsKey(e.key) && e.value is num && e.value > 0) coef[e.key as String] = (e.value as num).toDouble();
       }
     }
-    if (j['tokens'] is Map) {
-      for (final e in (j['tokens'] as Map).entries) {
-        if (tokensPerSecond.containsKey(e.key) && e.value is num && e.value > 0) tokensPerSecond[e.key as String] = (e.value as num).toDouble();
+    if (j['tokenCoef'] is Map) {
+      for (final e in (j['tokenCoef'] as Map).entries) {
+        if (tokenCoef.containsKey(e.key) && e.value is num && e.value > 0) tokenCoef[e.key as String] = (e.value as num).toDouble();
       }
     }
     loadSeconds = (j['loadSeconds'] as num?)?.toDouble() ?? loadSeconds;
@@ -137,38 +155,30 @@ class GenerationEstimator {
       await _file.writeAsString(const JsonEncoder.withIndent('  ').convert({
         'hw': hardware.toJson(),
         'runs': runs,
-        'speeds': speeds,
-        'tokens': tokensPerSecond,
+        'coef': coef,
+        'tokenCoef': tokenCoef,
         'loadSeconds': loadSeconds,
       }));
     } catch (_) {} // the estimate is a nicety, never fail a job over it
   }
 
   /// Expected song length in seconds. Covers use the source length.
-  /// Lyrics: 7.5 s per sung line plus 5 s per section; the reference lyrics (8 lines, 2 sections) give 70 s.
+  /// Lyrics: 36.6 + 4.17 s per sung line, section tags ignored (8 lines -> 70 s, 33 lines -> 174 s), clamped to 30..300 s.
+  /// No lyrics (instrumental): 120 s.
   double expectedSeconds({String lyrics = '', double? sourceSeconds}) {
     if (sourceSeconds != null && sourceSeconds > 0) return sourceSeconds;
-    var lines = 0, sections = 0;
-    for (final raw in lyrics.split('\n')) {
-      final l = raw.trim();
-      if (l.isEmpty) continue;
-      if (RegExp(r'^\[.*\]$').hasMatch(l)) {
-        sections++;
-      } else {
-        lines++;
-      }
-    }
-    if (lines > 0 && sections == 0) sections = 1;
-    return (lines * 7.5 + sections * 5).clamp(15.0, 300.0);
+    final lines = lyrics.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty && !RegExp(r'^\[.*\]$').hasMatch(l)).length;
+    if (lines == 0) return _instrumentalSeconds;
+    return (_lenA + _lenB * lines).clamp(30.0, 300.0);
   }
 
   /// Ordered (stage, seconds of work) for a job. A cover (sourceSeconds given) arrives with its score, so no abc stage.
   List<(String, double)> _steps(double audio, {required bool plan, required bool cover, String? current}) => [
         if (!modelLoaded || current == 'load') ('load', loadSeconds),
-        if (plan && !cover) ('abc', speeds['abc']! * audio),
-        ('semantic', speeds['semantic']! * audio),
-        ('nar', speeds['nar']! * audio),
-        ('vae', speeds['vae']! * audio),
+        if (plan && !cover) ('abc', _secs('abc', audio)),
+        ('semantic', _secs('semantic', audio)),
+        ('nar', _secs('nar', audio)),
+        ('vae', _secs('vae', audio)),
       ];
 
   Duration estimate({required String lyrics, double? sourceSeconds, bool plan = true}) {
@@ -181,7 +191,7 @@ class GenerationEstimator {
   Duration estimateTranscribe(double seconds) => Duration(milliseconds: (seconds * transcribePerSecond * 1000).round());
 
   /// Expected total token count of a token-counted stage.
-  double _expectedTokens(String stage, double audio) => tokensPerSecond[stage]! * audio;
+  double _expectedTokens(String stage, double audio) => tokenCoef[stage]! * math.pow(audio, tokenExp[stage]!);
 
   /// Fraction (0..1) of the current stage, never reaching 1 for stages with unknown totals.
   double _fraction(String stage, int done, int? total, Duration elapsed, double audio, double stageSeconds) {
@@ -270,7 +280,8 @@ class GenerationEstimator {
     return Duration(milliseconds: ((left + later * pace) * 1000).round());
   }
 
-  /// Folds a finished run into the stored speeds (moving average; the first run replaces the prior).
+  /// Folds a finished run into the stored coefficients c = seconds / L^exp (moving average; the first run replaces the
+  /// prior; the exponents stay, so a short run still scales up to a long song).
   /// [stageSeconds] keys: load, abc, semantic, nar, vae. [tokens] (optional): final token count of abc / semantic.
   Future<void> record({
     required Map<String, double> stageSeconds,
@@ -284,12 +295,14 @@ class GenerationEstimator {
       if (e.value <= 0) continue;
       if (e.key == 'load') {
         loadSeconds = mix(loadSeconds, e.value);
-      } else if (speeds.containsKey(e.key)) {
-        speeds[e.key] = mix(speeds[e.key]!, e.value / audioSeconds);
+      } else if (coef.containsKey(e.key)) {
+        coef[e.key] = mix(coef[e.key]!, e.value / math.pow(audioSeconds, stageExp[e.key]!));
       }
     }
     for (final e in (tokens ?? const <String, int>{}).entries) {
-      if (e.value > 0 && tokensPerSecond.containsKey(e.key)) tokensPerSecond[e.key] = mix(tokensPerSecond[e.key]!, e.value / audioSeconds);
+      if (e.value > 0 && tokenCoef.containsKey(e.key)) {
+        tokenCoef[e.key] = mix(tokenCoef[e.key]!, e.value / math.pow(audioSeconds, tokenExp[e.key]!));
+      }
     }
     runs++;
     modelLoaded = true;
