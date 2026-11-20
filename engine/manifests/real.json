@@ -1,0 +1,76 @@
+{
+  "name": "real",
+  "bytes": 11500000000,
+  "steps": [
+    {
+      "id": "python-3.12",
+      "kind": "python",
+      "label": "Python 3.12",
+      "version": "3.12"
+    },
+    {
+      "id": "venv-yue2",
+      "kind": "venv",
+      "label": "Engine environment (PyTorch, YuE2)",
+      "name": "yue2",
+      "python": "3.12",
+      "packages": [
+        "https://github.com/multimodal-art-projection/YuE/releases/download/yue2-v0.1.6/yue2_infer-0.1.6-py3-none-any.whl"
+      ]
+    },
+    {
+      "id": "hf-yue2-3b",
+      "kind": "hf",
+      "label": "YuE2 3B model",
+      "repo": "m-a-p/YuE2-3B",
+      "revision": "main",
+      "bytes": 6800000000,
+      "venv": "yue2"
+    },
+    {
+      "id": "hf-yue2-vae",
+      "kind": "hf",
+      "label": "YuE2 audio decoder",
+      "repo": "m-a-p/YuE2-Vae",
+      "revision": "main",
+      "bytes": 507000000,
+      "venv": "yue2"
+    },
+    {
+      "id": "python-3.11",
+      "kind": "python",
+      "label": "Python 3.11",
+      "version": "3.11"
+    },
+    {
+      "id": "hf-sheetsage2",
+      "kind": "hf",
+      "label": "SheetSage2 melody model",
+      "repo": "m-a-p/SheetSage2",
+      "revision": "main",
+      "bytes": 223000000,
+      "local_dir": "models/SheetSage2",
+      "venv": "yue2"
+    },
+    {
+      "id": "venv-sheetsage2",
+      "kind": "venv",
+      "label": "Cover environment (SheetSage2)",
+      "name": "sheetsage2",
+      "python": "3.11",
+      "packages": [
+        "soundfile"
+      ],
+      "requirements": "models/SheetSage2/requirements.txt"
+    },
+    {
+      "id": "hf-mert",
+      "kind": "hf",
+      "label": "MERT audio encoder",
+      "repo": "m-a-p/MERT-v2-FullSong",
+      "revision": "main",
+      "bytes": 2300000000,
+      "venv": "sheetsage2"
+    }
+  ]
+}

@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YuE2 Studio: look and feel proposal</title>
+<style>
+  :root {
+    --accent: #A4503A; --accent-press: #8C4230; --accent-soft: rgba(164,80,58,.12);
+    --bg: #ECECEC; --window: #FFFFFF; --sidebar: rgba(246,244,241,.82); --field: #F4F3F1;
+    --text: #1D1D1F; --text-2: #5F5F64; --text-3: #77777C; --line: rgba(0,0,0,.09);
+    --shadow: 0 22px 60px rgba(0,0,0,.18), 0 0 0 .5px rgba(0,0,0,.14);
+    --radius: 10px; --ease: cubic-bezier(.16,1,.3,1);
+  }
+  :root[data-theme="dark"] {
+    --accent: #D97C62; --accent-press: #E8927A; --accent-soft: rgba(217,124,98,.18);
+    --bg: #101011; --window: #1E1E20; --sidebar: rgba(40,39,38,.78); --field: #2A2A2D;
+    --text: #F5F5F7; --text-2: #B4B4BA; --text-3: #98989E; --line: rgba(255,255,255,.1);
+    --shadow: 0 22px 60px rgba(0,0,0,.6), 0 0 0 .5px rgba(255,255,255,.16);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 13px/1.45 -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif; -webkit-font-smoothing: antialiased; }
+  sup { font-size: .62em; vertical-align: super; line-height: 0; color: var(--accent); font-weight: 700; }
+  ::selection { background: var(--accent-soft); }
+  :focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 1px; }
+  header.page { max-width: 1120px; margin: 0 auto; padding: 40px 16px 8px; display: flex; gap: 16px; align-items: end; justify-content: space-between; flex-wrap: wrap; }
+  header.page h1 { font-size: 28px; letter-spacing: -.02em; margin: 0 0 4px; }
+  header.page p { margin: 0; color: var(--text-2); font-size: 15px; max-width: 62ch; }
+  .seg { display: inline-flex; background: var(--field); border-radius: 8px; padding: 2px; }
+  .seg button { border: 0; background: none; color: var(--text); font: inherit; padding: 5px 14px; border-radius: 6px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--window); box-shadow: 0 1px 3px rgba(0,0,0,.18); font-weight: 600; }
+  section.shot { max-width: 1120px; margin: 36px auto 0; padding: 0 16px; }
+  section.shot > h2 { font-size: 20px; letter-spacing: -.01em; margin: 0 0 4px; }
+  section.shot > p { margin: 0 0 16px; color: var(--text-2); font-size: 14px; max-width: 70ch; }
+  .scroll { overflow-x: auto; padding: 8px 4px 40px; }
+
+  /* ---- macOS window ---- */
+  .win { width: 1060px; height: 660px; background: var(--window); border-radius: 12px; box-shadow: var(--shadow);
+    display: grid; grid-template-columns: 216px 1fr; grid-template-rows: 1fr auto; overflow: hidden; position: relative; }
+  .side { background: var(--sidebar); backdrop-filter: blur(30px) saturate(1.6); border-right: 1px solid var(--line); padding: 14px 10px; grid-row: 1 / 3; display: flex; flex-direction: column; }
+  .lights { display: flex; gap: 8px; padding: 2px 6px 20px; }
+  .lights i { width: 12px; height: 12px; border-radius: 50%; background: #FF5F57; box-shadow: inset 0 0 0 .5px rgba(0,0,0,.2); }
+  .lights i:nth-child(2) { background: #FEBC2E; } .lights i:nth-child(3) { background: #28C840; }
+  .brand { display: flex; align-items: center; gap: 9px; padding: 0 8px 16px; font-weight: 600; font-size: 14px; }
+  .brand svg { width: 26px; height: 26px; color: var(--accent); }
+  .nav-label { font-size: 11px; font-weight: 600; color: var(--text-3); padding: 12px 8px 4px; }
+  .nav a { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; color: var(--text); text-decoration: none; }
+  .nav a svg { width: 16px; height: 16px; color: var(--accent); flex: none; }
+  .nav a[aria-current] { background: var(--accent-soft); font-weight: 600; }
+  .nav a span.n { margin-left: auto; color: var(--text-3); font-variant-numeric: tabular-nums; }
+  .queue { margin-top: auto; border-top: 1px solid var(--line); padding: 10px 8px 2px; color: var(--text-2); font-size: 12px; }
+  .queue b { color: var(--text); font-weight: 600; display: block; }
+  .bar { height: 4px; border-radius: 2px; background: var(--line); margin-top: 8px; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 46%; background: var(--accent); border-radius: 2px; }
+  .main { padding: 22px 28px; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+  .main h3 { font-size: 22px; letter-spacing: -.015em; margin: 0 0 16px; font-weight: 700; }
+  label.f { display: block; font-weight: 600; margin: 0 0 6px; }
+  label.f small { font-weight: 400; color: var(--text-3); margin-left: 6px; font-size: 12px; }
+  .input { background: var(--field); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; color: var(--text); white-space: pre-line; }
+  .input.ph { color: var(--text-3); }
+  .row { display: flex; gap: 14px; align-items: center; }
+  .btn { border: 0; border-radius: 8px; font: inherit; font-weight: 600; padding: 8px 18px; cursor: pointer; background: var(--accent); color: #fff; transition: background .2s var(--ease), transform .2s var(--ease); }
+  .btn:hover { background: var(--accent-press); } .btn:active { transform: scale(.97); }
+  :root[data-theme="dark"] .btn:not(.quiet) { color: #1B0F0B; }
+  .btn.quiet { background: var(--field); color: var(--text); border: 1px solid var(--line); }
+  .chips { display: inline-flex; background: var(--field); border-radius: 7px; padding: 2px; border: 1px solid var(--line); }
+  .chips span { padding: 3px 12px; border-radius: 5px; }
+  .chips span.on { background: var(--window); box-shadow: 0 1px 2px rgba(0,0,0,.16); font-weight: 600; }
+
+  .file { display: flex; align-items: center; gap: 12px; padding: 0 0 14px; border-bottom: 1px solid var(--line); margin-bottom: 14px; }
+  .file b { display: block; } .file small { color: var(--text-3); }
+  .cols { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  .col { display: flex; flex-direction: column; min-height: 0; }
+  .score svg { display: block; } .score svg path, .score svg text, .score svg rect { fill: currentColor; } .score svg path[stroke] { stroke: currentColor; }
+  .mono { font: 12px/1.5 "SF Mono", ui-monospace, Menlo, monospace; }
+  /* ---- player ---- */
+  .player { grid-column: 2; border-top: 1px solid var(--line); padding: 10px 20px; display: flex; align-items: center; gap: 14px; background: var(--window); }
+  .player canvas, .art { width: 40px; height: 40px; border-radius: 6px; flex: none; }
+  .player .t { min-width: 0; } .player .t b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .player .t span { color: var(--text-3); font-size: 12px; }
+  .scrub { flex: 1; height: 4px; background: var(--line); border-radius: 2px; position: relative; }
+  .scrub i { position: absolute; inset: 0 62% 0 0; background: var(--text-2); border-radius: 2px; }
+  .ctl { display: flex; gap: 14px; align-items: center; } .ctl svg { width: 18px; height: 18px; } .ctl svg.big { width: 26px; height: 26px; }
+  .time { color: var(--text-3); font-variant-numeric: tabular-nums; font-size: 12px; }
+
+  /* ---- library ---- */
+  .lib-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .lib-head h3 { margin: 0; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11px; font-weight: 600; color: var(--text-3); padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  td { padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  tr.sel td { background: var(--accent-soft); }
+  td .art { display: block; } td b { display: block; } td small { color: var(--text-3); }
+  td.num { font-variant-numeric: tabular-nums; color: var(--text-2); }
+  .heart { width: 16px; height: 16px; color: var(--text-3); } .heart.on { color: var(--accent); }
+  .status { color: var(--text-2); } .status.live { color: var(--accent); font-weight: 600; }
+
+  /* ---- generating ---- */
+  .gen { flex: 1; display: grid; place-items: center; text-align: center; }
+  .wave { position: relative; width: 340px; height: 340px; margin: 0 auto; }
+  .wave canvas { width: 340px; height: 340px; display: block; }
+  .wave svg { position: absolute; inset: 0; margin: auto; width: 92px; height: 92px; color: var(--accent); }
+  .gen h4 { font-size: 20px; margin: 14px 0 2px; letter-spacing: -.01em; }
+  .gen p { margin: 0; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .stages { display: flex; gap: 22px; justify-content: center; margin: 18px 0 14px; color: var(--text-3); font-size: 12px; }
+  .stages span.on { color: var(--text); font-weight: 600; } .stages span.done { color: var(--text-2); }
+
+  /* ---- setup ---- */
+  .setup { grid-column: 1 / 3; grid-row: 1 / 3; display: grid; place-items: center; padding: 30px; }
+  .setup .inner { width: 520px; }
+  .setup svg.logo { width: 64px; height: 64px; color: var(--accent); }
+  .setup h3 { font-size: 26px; letter-spacing: -.02em; margin: 14px 0 6px; }
+  .setup .inner p { color: var(--text-2); margin: 0 0 22px; font-size: 14px; }
+  .steps { list-style: none; margin: 0 0 22px; padding: 0; }
+  .steps li { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .steps li .dot { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--text-3); }
+  .steps li.done .dot { background: var(--accent); border-color: var(--accent); }
+  .steps li.now .dot { border-color: var(--accent); border-top-color: transparent; animation: spin 1s linear infinite; }
+  .steps li span.sz { color: var(--text-3); font-variant-numeric: tabular-nums; }
+  .steps li.now b { font-weight: 600; }
+  .total { display: flex; justify-content: space-between; font-weight: 600; font-variant-numeric: tabular-nums; margin-bottom: 4px; }
+  .setup { position: relative; } .fine { position: absolute; left: 0; right: 0; bottom: 14px; margin: 0; text-align: center; font-size: 8.5px; color: var(--text-3); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .steps li.now .dot { animation: none; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="logo" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="50" cy="50" r="45"/>
+    <path d="M58 7v16c0 8-3 10-10 10H31a5 5 0 0 0 0 14h44"/>
+    <path d="M38 47v28M53 47v31M68 47v28"/>
+    <circle cx="33" cy="76" r="5" fill="currentColor" stroke="none"/><circle cx="63" cy="76" r="5" fill="currentColor" stroke="none"/>
+  </symbol>
+  <symbol id="i-create" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 2v12M2 8h12"/></symbol>
+  <symbol id="i-cover" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 12V3l7-1.5V10"/><circle cx="4" cy="12" r="2"/><circle cx="11" cy="10.5" r="2"/></symbol>
+  <symbol id="i-lib" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 2.5v11M6.5 2.5v11M10 3l3 10"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 16 16" fill="currentColor"><path d="M8 14S2 10.2 2 6.2A3.2 3.2 0 0 1 8 4.6a3.2 3.2 0 0 1 6 1.6C14 10.2 8 14 8 14z"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></symbol>
+</svg>
+
+<header class="page">
+  <div>
+    <h1>YuE<sup>2</sup> Studio: look and feel</h1>
+    <p>Apple-native structure, terracotta from the logo as the only accent. Expression lives in two places: the generation moment and the artwork of each song.</p>
+  </div>
+  <div class="seg" role="group" aria-label="Appearance">
+    <button data-t="light" aria-pressed="true">Light</button><button data-t="dark" aria-pressed="false">Dark</button>
+  </div>
+</header>
+
+<section class="shot">
+  <h2>1. Generating</h2>
+  <p>The signature moment. A circular waveform pulses around the mark and fills with terracotta as the engine advances through its real stages. When it finishes, the ring settles and the song's artwork lands in the Library row.</p>
+  <div class="scroll"><div class="win">
+    <aside class="side" data-side="create"></aside>
+    <div class="main"><div class="gen"><div>
+      <div class="wave"><canvas id="gen" width="680" height="680" aria-label="Generation animation"></canvas><svg><use href="#logo"/></svg></div>
+      <h4>City Lights</h4>
+      <div class="stages"><span id="s0">Score</span><span id="s1">Melody</span><span id="s2">Sound</span><span id="s3">Master</span></div>
+      <p id="gen-p">Writing the score</p>
+      <div style="margin-top:16px"><button class="btn quiet">Cancel</button></div>
+    </div></div></div>
+    <div class="player" data-player></div>
+  </div></div>
+</section>
+
+<section class="shot">
+  <h2>2. Create</h2>
+  <p>One column, two fields, options on one line. The form stays editable while a song generates, so the next one can be queued.</p>
+  <div class="scroll"><div class="win">
+    <aside class="side" data-side="create"></aside>
+    <div class="main">
+      <h3>Create</h3>
+      <label class="f">Style <small>Genre, instruments, voice, language, tempo</small></label>
+      <div class="input" style="min-height:64px">English, warm piano pop, expressive female voice, acoustic piano, rounded bass and light drums, 88 BPM</div>
+      <label class="f" style="margin-top:16px">Lyrics <small>Use [Verse] and [Chorus]. Leave empty for instrumental.</small></label>
+      <div class="input" style="flex:1;min-height:0;overflow:hidden">[Verse]
+Neon fades along the lane
+Footsteps keep the time of rain
+Fold the night and leave it here
+Morning has a sky to clear
+
+[Chorus]
+Let the day come into view
+Every road begins with you</div>
+      <div class="row" style="margin-top:16px">
+        <span style="font-weight:600">Plan</span>
+        <div class="chips"><span class="on">Melody + chords</span><span>Melody</span><span>None</span></div>
+        <span style="color:var(--text-3)">Seed: random</span>
+        <span style="margin-left:auto;color:var(--text-3)">About 2 min 40 s on this Mac</span>
+        <button class="btn">Add to Queue</button>
+      </div>
+    </div>
+    <div class="player" data-player></div>
+  </div></div>
+</section>
+
+<section class="shot">
+  <h2>3. Cover</h2>
+  <p>Same grammar as Create, read left to right: the recording and the score taken from it, then what the new version should sound like.</p>
+  <div class="scroll"><div class="win">
+    <aside class="side" data-side="cover"></aside>
+    <div class="main">
+      <h3>Cover</h3>
+      <div class="file"><canvas class="art" data-seed="5150" width="80" height="80"></canvas>
+        <div><b>harbour-demo.mp3</b><small>2.7 MB · 1:12 · melody transcribed</small></div>
+        <button class="btn quiet" style="margin-left:auto">Replace</button><button class="btn quiet">Remove</button></div>
+      <div class="cols">
+        <div class="col">
+          <div class="row" style="margin-bottom:6px"><label class="f" style="margin:0">Score <small>Taken from the recording</small></label>
+            <div class="chips" style="margin-left:auto"><span class="on">Notation</span><span>Text</span></div></div>
+          <div class="input score" id="score" style="flex:1;min-height:0;overflow:auto"></div>
+          <div class="row" style="margin-top:8px"><div class="chips"><span>Close</span><span class="on">Free</span></div>
+            <small style="color:var(--text-3)">Free keeps the melody only. Close also keeps the chords.</small></div>
+        </div>
+        <div class="col">
+          <label class="f">Cover description <small>The new mood and arrangement</small></label>
+          <div class="input" style="min-height:64px">Italian, acoustic folk, warm female voice, fingerpicked guitar and soft strings, 80 BPM</div>
+          <label class="f" style="margin-top:16px">Lyrics <small>In the order of the score's sections</small></label>
+          <div class="input" style="flex:1;min-height:0;overflow:hidden">[Verse]
+Il caffè profuma già
+Luci piccole in città
+
+[Chorus]
+Suona ancora, suona ancora
+Una canzone per l'aurora</div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:16px"><span style="color:var(--text-3)">Seed: random</span>
+        <span style="margin-left:auto;color:var(--text-3)">About 2 min 40 s on this Mac</span><button class="btn">Add to Queue</button></div>
+    </div>
+    <div class="player" data-player></div>
+  </div></div>
+</section>
+
+<section class="shot">
+  <h2>4. Library</h2>
+  <p>A plain list, like Music. Artwork makes each song recognisable; double-click a title to rename; the heart filters with "Liked".</p>
+  <div class="scroll"><div class="win">
+    <aside class="side" data-side="library"></aside>
+    <div class="main">
+      <div class="lib-head"><h3>Library</h3><div class="chips"><span class="on">All</span><span>Liked</span></div></div>
+      <table><thead><tr><th style="width:52px"></th><th>Title</th><th>Created</th><th>Length</th><th style="width:40px"></th></tr></thead><tbody id="rows"></tbody></table>
+    </div>
+    <div class="player" data-player></div>
+  </div></div>
+</section>
+
+<section class="shot">
+  <h2>5. First run</h2>
+  <p>One calm screen, real steps with real sizes, resumable. No sidebar until the engine is ready. The model licence moves to the macOS About panel.</p>
+  <div class="scroll"><div class="win"><div class="setup"><div class="inner">
+    <svg class="logo"><use href="#logo"/></svg>
+    <h3>Setting up YuE<sup>2</sup> Studio</h3>
+    <p>Your private-first music generation studio. Music is generated locally.</p>
+    <ul class="steps">
+      <li class="done"><i class="dot"></i><span>Python runtime</span><span class="sz">48 MB</span></li>
+      <li class="done"><i class="dot"></i><span>Audio engine</span><span class="sz">1.1 GB</span></li>
+      <li class="now"><i class="dot"></i><b>YuE2 song model</b><span class="sz">3.1 of 6.8 GB</span></li>
+      <li><i class="dot"></i><span>Audio decoder</span><span class="sz">507 MB</span></li>
+      <li><i class="dot"></i><span>Cover transcription</span><span class="sz">2.5 GB</span></li>
+    </ul>
+    <div class="total"><span>Total download</span><span>4.2 of 11.0 GB</span></div>
+    <div class="bar"><i></i></div>
+  </div><p class="fine">Unofficial client, not affiliated with the YuE2 authors.</p></div></div></div>
+</section>
+
+<script src="abcjs-basic-min.js"></script>
+<script>
+// ---- theme toggle ----
+const root = document.documentElement;
+document.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
+  root.dataset.theme = b.dataset.t;
+  document.querySelectorAll('.seg button').forEach(x => x.setAttribute('aria-pressed', x === b));
+});
+if (matchMedia('(prefers-color-scheme: dark)').matches) document.querySelector('[data-t=dark]').click();
+
+// ---- shared chrome ----
+const nav = (cur) => `
+  <div class="lights"><i></i><i></i><i></i></div>
+  <div class="brand"><svg><use href="#logo"/></svg><span>YuE<sup>2</sup> Studio</span></div>
+  <nav class="nav">
+    <a href="#" ${cur==='create'?'aria-current="page"':''}><svg><use href="#i-create"/></svg>Create</a>
+    <a href="#" ${cur==='cover'?'aria-current="page"':''}><svg><use href="#i-cover"/></svg>Cover</a>
+    <div class="nav-label">Library</div>
+    <a href="#" ${cur==='library'?'aria-current="page"':''}><svg><use href="#i-lib"/></svg>All Songs<span class="n">24</span></a>
+    <a href="#"><svg><use href="#i-heart"/></svg>Liked<span class="n">7</span></a>
+  </nav>
+  <div class="queue"><b>Generating City Lights</b>Sound, step 15 of 32 · 2 queued<div class="bar"><i></i></div></div>`;
+document.querySelectorAll('[data-side]').forEach(e => e.innerHTML = nav(e.dataset.side));
+document.querySelectorAll('[data-player]').forEach(e => e.innerHTML = `
+  <canvas class="art" data-seed="7" width="80" height="80"></canvas>
+  <div class="t"><b>Coffee Steam</b><span>Lo-fi pop · 1:04</span></div>
+  <div class="ctl"><svg><use href="#i-prev"/></svg><svg class="big"><use href="#i-play"/></svg><svg><use href="#i-next"/></svg></div>
+  <span class="time">0:24</span><div class="scrub"><i></i></div><span class="time">1:04</span>
+  <svg class="heart on"><use href="#i-heart"/></svg>`);
+
+// ---- algorithmic artwork: seed -> palette + composition ----
+function rng(seed) { let s = seed * 2654435761 >>> 0; return () => ((s = Math.imul(s ^ s >>> 15, 2246822507) ^ Math.imul(s ^ s >>> 13, 3266489909), (s ^= s >>> 16) >>> 0) / 4294967296); }
+function artwork(ctx, size, seed, alpha = 1) {
+  const r = rng(seed + 977); for (let i = 0; i < 8; i++) r();
+  const hue = r() * 360, hue2 = (hue + 40 + r() * 100) % 360, kind = Math.floor(r() * 3);
+  ctx.save(); ctx.globalAlpha = alpha;
+  const g = ctx.createLinearGradient(0, 0, size, size);
+  g.addColorStop(0, `hsl(${hue} 62% 46%)`); g.addColorStop(1, `hsl(${hue2} 58% 30%)`);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, size, size);
+  for (let i = 0; i < 3; i++) {
+    const x = r() * size, y = r() * size, rad = size * (.25 + r() * .45);
+    const b = ctx.createRadialGradient(x, y, 0, x, y, rad);
+    b.addColorStop(0, `hsla(${(hue + 150 * r()) % 360} 80% 68% / .75)`); b.addColorStop(1, 'transparent');
+    ctx.fillStyle = b; ctx.fillRect(0, 0, size, size);
+  }
+  const cx = r() * size, cy = size * (.6 + r() * .6), rings = 4 + Math.floor(r() * 7);
+  ctx.strokeStyle = 'rgba(255,255,255,.34)'; ctx.lineWidth = size / 110;
+  ctx.fillStyle = 'rgba(255,255,255,.4)';
+  if (kind === 0) for (let i = 1; i <= rings; i++) { ctx.beginPath(); ctx.arc(cx, cy, size * i / rings * .9, 0, Math.PI * 2); ctx.stroke(); }
+  if (kind === 1) { ctx.translate(size / 2, size / 2); ctx.rotate(r() * Math.PI); ctx.lineWidth = size / (rings * 3);
+    for (let i = -rings; i <= rings; i++) { ctx.beginPath(); ctx.moveTo(-size, i * size / rings); ctx.lineTo(size, i * size / rings); ctx.stroke(); } }
+  if (kind === 2) for (let i = 0; i < rings; i++) for (let j = 0; j < rings; j++) { ctx.beginPath();
+    ctx.arc((i + .5) * size / rings, (j + .5) * size / rings, size / rings * (.12 + .3 * r()), 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+}
+const songs = [['City Lights','Piano pop',831001,'Generating',''],['Coffee Steam','Lo-fi pop',7,'Today, 14:31','1:04',1],['Suona ancora','Acoustic folk',11,'Today, 14:51','1:06',1],
+  ['Harbour at Noon','Bossa nova',42,'Yesterday','2:12'],['Glass Rivers','Ambient, instrumental',1203,'Yesterday','3:01',1],['Paper Kites','Indie rock',88,'Tuesday','1:48'],['Low Sun','Neo soul',3141,'Tuesday','2:20']];
+document.getElementById('rows').innerHTML = songs.map((s, i) => `<tr class="${i===1?'sel':''}"><td><canvas class="art" data-seed="${s[2]}" width="80" height="80"></canvas></td>
+  <td><b>${s[0]}</b><small>${s[1]}</small></td><td class="${i?'status':'status live'}">${i?s[3]:'Generating…'}</td><td class="num">${i?s[4]:'Queued: 2'}</td>
+  <td><svg class="heart ${s[5]?'on':''}"><use href="#i-heart"/></svg></td></tr>`).join('');
+document.querySelectorAll('canvas.art').forEach(c => artwork(c.getContext('2d'), 80, +c.dataset.seed));
+
+// ---- score notation (abcjs, MIT) ----
+ABCJS.renderAbc('score', `X:1
+M:4/4
+L:1/16
+Q:1/4=88
+V:Vocal clef=treble name="Vocal Melody" snm="Vocal"
+V:Ins clef=treble name="Ins Melody" snm="Inst."
+K:G
+V:Vocal
+z4Bd3d2Bd3Be-|e3z12z|z4B2d2d2Bd3Be-|e3z12z|
+V:Ins
+z12B2B2|B4B4B2c2d2a2-|a4d4d4c2B2-|B4B4B2c2d2G2-|
+V:Vocal
+z4B2dd3Bd2a3|a4z4b2a2g2f2|e6f6g4-|g4z4c'2ba3g2|
+V:Ins
+z16|z16|z16|z16|`, { responsive: 'resize', staffwidth: 520, paddingtop: 0, paddingbottom: 0 });
+
+// ---- generation animation: circular waveform, filled by real stage progress ----
+const c = document.getElementById('gen'), x = c.getContext('2d'), S = 680, labels = ['Writing the score', 'Composing the melody', 'Rendering sound', 'Mastering'];
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches, BARS = 120;
+function frame(ms) {
+  const t = ms / 1000, p = still ? .7 : (t % 14) / 14, stage = Math.min(3, Math.floor(p * 4));
+  const css = getComputedStyle(root), accent = css.getPropertyValue('--accent').trim(), idle = css.getPropertyValue('--text-3').trim();
+  x.clearRect(0, 0, S, S); x.lineCap = 'round'; x.lineWidth = 6;
+  const beat = .55 + .45 * Math.pow(Math.abs(Math.sin(t * 2.2)), 3);            // the pulse
+  for (let i = 0; i < BARS; i++) {
+    const a = i / BARS * Math.PI * 2 - Math.PI / 2, done = i / BARS < p;
+    const v = Math.abs(Math.sin(i * .37 + t * 2.6) * .5 + Math.sin(i * .11 - t * 1.7) * .35 + Math.sin(i * .83 + t * 4.1) * .15);
+    const len = 10 + v * 78 * (done ? beat : .35), r0 = 150;
+    x.strokeStyle = done ? accent : idle; x.globalAlpha = done ? 1 : .45;
+    x.beginPath(); x.moveTo(S / 2 + Math.cos(a) * r0, S / 2 + Math.sin(a) * r0);
+    x.lineTo(S / 2 + Math.cos(a) * (r0 + len), S / 2 + Math.sin(a) * (r0 + len)); x.stroke();
+  }
+  x.globalAlpha = 1;
+  for (let i = 0; i < 4; i++) document.getElementById('s' + i).className = i < stage ? 'done' : i === stage ? 'on' : '';
+  document.getElementById('gen-p').textContent = stage === 2 ? `${labels[2]}, step ${Math.min(32, Math.floor((p * 4 - 2) * 32) + 1)} of 32` : labels[stage];
+  if (!still) requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

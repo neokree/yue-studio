@@ -15,13 +15,15 @@ Hard deadline: **today 16:00**. Speed is the priority of this document.
 
 | Topic | Decision |
 |---|---|
-| Name | "YuE2 Studio". About screen and README say: unofficial client, not affiliated with the YuE2 authors. |
+| Name | "YuE2 Studio" in bundle and file names; displayed as "YuE² Studio" with the 2 as a superscript. About screen and README say: unofficial client, not affiliated with the YuE2 authors. |
 | Logo | The mark in `reference/yue2-logo.webp` (circle + notes, terracotta). Redraw it as a vector path in code. |
 | Platforms | Ships: macOS 14+, Apple Silicon only. Linux build exists only for tests. |
 | Language | English UI only, but every string goes through `slang` from the first commit. |
 | Look | Apple look and feel: translucent sidebar (Create, Cover, Library), San Francisco system font, light and dark following the system, controls and spacing like Apple Music/Podcasts, terracotta as accent. Final tokens come from `design/DESIGN.md` (see section 8). |
 | Animations | Written in Flutter code (fragment shaders, CustomPainter). No Rive, no Lottie, no video. The most refined animation is the song-generation state. |
-| Song artwork | Generated algorithmically from the song id/seed (CustomPainter). No image model. Two songs must be visibly different at a glance. |
+| Song artwork | Generated algorithmically from the song id/seed (CustomPainter). No image model. Two songs must be visibly different at a glance. Artwork is persistent: same song, same artwork across restarts and regardless of other songs (versioned algorithm, see DESIGN.md). |
+| Time estimate | Never a static string: computed from the user's hardware and calibrated by their own past runs (`GenerationEstimator`, see DESIGN.md). |
+| Score view | ABC shown as staff notation (abcjs in a WebView on macOS) with a Text toggle; see DESIGN.md. |
 | Signing | Ad-hoc signature, not notarized. README explains the Gatekeeper step. App Sandbox off (the app spawns processes and downloads files). |
 | Repo | `neokree/yue-studio`, **private**. Local `gh` is logged in. No CI. |
 
@@ -34,7 +36,7 @@ Hard deadline: **today 16:00**. Speed is the priority of this document.
 
 **Queue**: the engine runs one job at a time. The user can enqueue more while one runs; jobs run in order; each can be cancelled. The generation animation follows the running job; the others show as "queued" in the Library.
 
-**Cut order if late**: Cover first, then export/reuse actions, then dark theme polish. Setup, Create, Library with like/rename and the generation animation are never cut.
+**Cut order if late**: staff-notation view first (fall back to the text score), then Cover, then export/reuse actions, then dark theme polish. Setup, Create, Library with like/rename and the generation animation are never cut.
 
 ## 4. Architecture (fixed)
 
@@ -127,7 +129,9 @@ If a milestone is 20 minutes late, apply the cut order in section 3 instead of c
 
 ## 8. Design input
 
-The user and the planning session (yue-99) are deciding the look and feel in parallel. Until `design/DESIGN.md` exists, build with the provisional tokens and the Apple-style structure in section 2. When it arrives, treat it as fixed.
+`design/DESIGN.md` is approved and fixed (2026-11-20, 11:50). `design/proposal.html` is its visual reference: open it in a browser. `PRODUCT.md` holds the product context.
+
+**Next step, not today**: evaluate YuE2-Turbo (https://github.com/NoizAI/YuE2-Turbo) as a faster engine. Its Apple Silicon support is unverified. Keep the sidecar's engine behind one small Python interface so it can be swapped later; do not spend time on Turbo before the release.
 
 ## 9. Rules
 

@@ -1,0 +1,154 @@
+/// Mirrors engine/PROTOCOL.md sections 2 and 3. Change that file first.
+library;
+
+enum CotMode {
+  full,
+  melody,
+  off;
+
+  static CotMode parse(String? s) => values.firstWhere((m) => m.name == s, orElse: () => CotMode.full);
+}
+
+sealed class EngineRequest {
+  const EngineRequest();
+  Map<String, dynamic> toJson();
+}
+
+class GenerateRequest extends EngineRequest {
+  const GenerateRequest({
+    required this.job,
+    required this.out,
+    required this.style,
+    required this.lyrics,
+    required this.cot,
+    required this.seed,
+    this.abc,
+  });
+  final String job, out, style, lyrics;
+  final CotMode cot;
+  final int seed;
+  final String? abc;
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': 'generate',
+        'job': job,
+        'out': out,
+        'style': style,
+        'lyrics': lyrics,
+        'cot': cot.name,
+        'seed': seed,
+        if (abc != null && abc!.isNotEmpty) 'abc': abc,
+      };
+}
+
+class TranscribeRequest extends EngineRequest {
+  const TranscribeRequest({required this.job, required this.audio, required this.out, required this.mode});
+  final String job, audio, out;
+
+  /// 'full' (Close: melody + chords) or 'melody' (Free: melody only).
+  final String mode;
+
+  @override
+  Map<String, dynamic> toJson() => {'type': 'transcribe', 'job': job, 'audio': audio, 'out': out, 'mode': mode};
+}
+
+class CancelRequest extends EngineRequest {
+  const CancelRequest(this.job);
+  final String job;
+  @override
+  Map<String, dynamic> toJson() => {'type': 'cancel', 'job': job};
+}
+
+class ShutdownRequest extends EngineRequest {
+  const ShutdownRequest();
+  @override
+  Map<String, dynamic> toJson() => {'type': 'shutdown'};
+}
+
+sealed class EngineEvent {
+  const EngineEvent();
+
+  /// Unknown types become [UnknownEvent]; unknown fields are ignored.
+  factory EngineEvent.fromJson(Map<String, dynamic> j) {
+    switch (j['type']) {
+      case 'ready':
+        return ReadyEvent(version: (j['version'] as num?)?.toInt() ?? 1, fake: j['fake'] == true);
+      case 'progress':
+        return ProgressEvent(
+          job: j['job'] as String? ?? '',
+          stage: j['stage'] as String? ?? '',
+          done: (j['done'] as num?)?.toInt() ?? 0,
+          total: (j['total'] as num?)?.toInt(),
+        );
+      case 'result':
+        return ResultEvent(
+          job: j['job'] as String? ?? '',
+          dir: j['dir'] as String? ?? '',
+          audio: j['audio'] as String?,
+          seed: (j['seed'] as num?)?.toInt(),
+          duration: (j['duration'] as num?)?.toDouble(),
+        );
+      case 'error':
+        return ErrorEvent(
+          job: j['job'] as String?,
+          message: j['message'] as String? ?? 'unknown error',
+          cancelled: j['cancelled'] == true,
+        );
+      default:
+        return UnknownEvent(j);
+    }
+  }
+
+  Map<String, dynamic> toJson();
+}
+
+class ReadyEvent extends EngineEvent {
+  const ReadyEvent({this.version = 1, this.fake = false});
+  final int version;
+  final bool fake;
+  @override
+  Map<String, dynamic> toJson() => {'type': 'ready', 'version': version, 'fake': fake};
+}
+
+class ProgressEvent extends EngineEvent {
+  const ProgressEvent({required this.job, required this.stage, required this.done, this.total});
+  final String job, stage;
+  final int done;
+  final int? total;
+  @override
+  Map<String, dynamic> toJson() => {'type': 'progress', 'job': job, 'stage': stage, 'done': done, 'total': total};
+}
+
+class ResultEvent extends EngineEvent {
+  const ResultEvent({required this.job, required this.dir, this.audio, this.seed, this.duration});
+  final String job, dir;
+  final String? audio;
+  final int? seed;
+  final double? duration;
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': 'result',
+        'job': job,
+        'dir': dir,
+        if (audio != null) 'audio': audio,
+        if (seed != null) 'seed': seed,
+        if (duration != null) 'duration': duration,
+      };
+}
+
+class ErrorEvent extends EngineEvent {
+  const ErrorEvent({this.job, required this.message, this.cancelled = false});
+  final String? job;
+  final String message;
+  final bool cancelled;
+  @override
+  Map<String, dynamic> toJson() => {'type': 'error', 'job': job, 'message': message, 'cancelled': cancelled};
+}
+
+class UnknownEvent extends EngineEvent {
+  const UnknownEvent(this.raw);
+  final Map<String, dynamic> raw;
+  @override
+  Map<String, dynamic> toJson() => raw;
+}

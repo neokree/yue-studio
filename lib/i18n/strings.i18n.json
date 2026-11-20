@@ -1,0 +1,68 @@
+{
+  "app": {
+    "title": "YuE2 Studio",
+    "unofficial": "Unofficial client. Not affiliated with the YuE2 authors."
+  },
+  "nav": {
+    "create": "Create",
+    "cover": "Cover",
+    "library": "Library"
+  },
+  "setup": {
+    "title": "Set up YuE2 Studio",
+    "intro": "The engine and the models are downloaded once into a private folder. Nothing outside it is touched.",
+    "install": "Install",
+    "resume": "Resume",
+    "retry": "Retry",
+    "installing": "Installing...",
+    "done": "All set",
+    "licence": "Model weights are licensed CC BY-NC 4.0 and used with the permission of their creators. Non-commercial use only.",
+    "disk": "Needs about $size of free disk space.",
+    "noDisk": "Not enough free disk space: $need needed, $free available.",
+    "failed": "Step failed: $message",
+    "step": {
+      "pending": "Waiting",
+      "running": "Working",
+      "done": "Done",
+      "failed": "Failed"
+    }
+  },
+  "create": {
+    "title": "Create",
+    "style": "Style",
+    "styleHint": "English, warm piano pop, expressive female voice, 88 BPM",
+    "lyrics": "Lyrics",
+    "lyricsHint": "[Verse]\\nWrite your lyrics here\\n\\n[Chorus]\\n...",
+    "plan": "Symbolic plan",
+    "planFull": "Full",
+    "planMelody": "Melody",
+    "planOff": "Off",
+    "seed": "Seed",
+    "seedHint": "Random",
+    "generate": "Generate",
+    "queued": "Added to the library",
+    "untitled": "Untitled"
+  },
+  "cover": {
+    "title": "Cover",
+    "soon": "Cover is coming soon."
+  },
+  "library": {
+    "title": "Library",
+    "empty": "No songs yet. Create one.",
+    "status": {
+      "queued": "Queued",
+      "generating": "Generating",
+      "done": "Done",
+      "failed": "Failed"
+    },
+    "stage": {
+      "load": "Loading model",
+      "abc": "Planning",
+      "semantic": "Composing",
+      "nar": "Rendering",
+      "vae": "Decoding",
+      "transcribe": "Transcribing"
+    }
+  }
+}

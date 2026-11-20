@@ -1,11 +1,15 @@
-build/
-.dart_tool/
-.scratch/
-*.iml
-.idea/
-.fvm/flutter_sdk
+
 __pycache__/
-.venv/
+.dart_tool/
+.flutter-plugins-dependencies
+.fvm/.scratch/
+.idea/
 .pytest_cache/
+.scratch/
+.venv/
+.vscode/
+*.iml
+# FVM Version Cache
 assets/uv/uv
+build/
 dist/
