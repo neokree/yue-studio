@@ -58,7 +58,7 @@ On first launch the app checks the memory (see System requirements), then instal
 - Resume. If the download stops, start the app again and setup continues from the last finished step.
 - Retry. If a step fails, press retry on that step.
 
-Setup shows the licence note for the model weights and the unofficial notice.
+Setup shows the unofficial notice. The model licence note is in the About panel (YuE² Studio menu > About YuE² Studio).
 
 All downloaded files go to this folder:
 
@@ -78,10 +78,10 @@ Step 3 also deletes all your songs and the models. Export the songs you want to 
 
 ## Licences
 
-- **App code**: TBD.
+- **App code**: MIT licence, see [LICENSE](LICENSE). It covers this repository's code only, not the model weights the app downloads.
 - **Model weights**: CC BY-NC 4.0. The creators gave permission to use them in this app. The licence allows non-commercial use only.
 - **abcjs** (score rendering): MIT licence, Copyright (c) 2009-2024 Paul Rosen and Gregory Dyke.
-- **uv** (Python environment manager, bundled): used under its own licence. See the uv project for the terms.
+- **uv** (Python environment manager, bundled): MIT or Apache-2.0, at your option.
 
 ## Development
 
