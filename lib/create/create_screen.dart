@@ -107,7 +107,7 @@ class _Form extends StatelessWidget {
         children: [
           Text(t.create.title, style: theme.textTheme.titleLarge),
           const SizedBox(height: Space.md),
-          _FieldLabel(t.create.titleLabel, t.create.titleHint, tag: t.create.optional),
+          _FieldLabel(t.create.titleLabel, '', tag: t.create.optional),
           TextField(key: const Key('create.title'), controller: d.title, style: _value),
           const SizedBox(height: Space.md),
           _FieldLabel(t.create.style, t.create.styleHint),

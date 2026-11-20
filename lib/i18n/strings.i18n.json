@@ -44,7 +44,6 @@
     "title": "Create",
     "titleLabel": "Title",
     "optional": "(Optional)",
-    "titleHint": "Empty uses the first lyric line, or Untitled and the date.",
     "style": "Style",
     "styleHint": "Genre, instruments, voice, language, tempo",
     "stylePlaceholder": "English, warm piano pop, expressive female voice, acoustic piano, 88 BPM",
@@ -100,7 +99,6 @@
     "needLyrics": "Write the lyrics first.",
     "titleLabel": "Title",
     "optional": "(Optional)",
-    "titleHint": "Defaults to the first lyric line",
     "titlePlaceholder": "Untitled",
     "estimateIdle": "Choose a recording for an estimate"
   },

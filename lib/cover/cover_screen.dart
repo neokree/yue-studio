@@ -271,7 +271,7 @@ class _CoverScreenState extends State<CoverScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _Label(t.cover.titleLabel, t.cover.titleHint, tag: t.cover.optional),
+                          _Label(t.cover.titleLabel, '', tag: t.cover.optional),
                           TextField(
                             key: const Key('cover.title'),
                             controller: _title,

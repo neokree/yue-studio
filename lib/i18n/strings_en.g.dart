@@ -183,9 +183,6 @@ class Translations$create$en {
 	/// en: '(Optional)'
 	String get optional => '(Optional)';
 
-	/// en: 'Empty uses the first lyric line, or Untitled and the date.'
-	String get titleHint => 'Empty uses the first lyric line, or Untitled and the date.';
-
 	/// en: 'Style'
 	String get style => 'Style';
 
@@ -353,9 +350,6 @@ class Translations$cover$en {
 
 	/// en: '(Optional)'
 	String get optional => '(Optional)';
-
-	/// en: 'Defaults to the first lyric line'
-	String get titleHint => 'Defaults to the first lyric line';
 
 	/// en: 'Untitled'
 	String get titlePlaceholder => 'Untitled';
@@ -890,7 +884,6 @@ extension on Translations {
 			'create.title' => 'Create',
 			'create.titleLabel' => 'Title',
 			'create.optional' => '(Optional)',
-			'create.titleHint' => 'Empty uses the first lyric line, or Untitled and the date.',
 			'create.style' => 'Style',
 			'create.styleHint' => 'Genre, instruments, voice, language, tempo',
 			'create.stylePlaceholder' => 'English, warm piano pop, expressive female voice, acoustic piano, 88 BPM',
@@ -944,7 +937,6 @@ extension on Translations {
 			'cover.needLyrics' => 'Write the lyrics first.',
 			'cover.titleLabel' => 'Title',
 			'cover.optional' => '(Optional)',
-			'cover.titleHint' => 'Defaults to the first lyric line',
 			'cover.titlePlaceholder' => 'Untitled',
 			'cover.estimateIdle' => 'Choose a recording for an estimate',
 			'library.title' => 'Library',
