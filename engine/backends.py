@@ -59,7 +59,7 @@ def memory_gb():
 
 
 def low_memory():
-    return memory_gb() < 24
+    return memory_gb() < 32  # SheetSage2 peaks ~15 GB + YuE2 resident ~9.7 GB: 24 GB Macs would swap
 
 
 def nap(cancelled, seconds):

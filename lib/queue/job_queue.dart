@@ -191,6 +191,7 @@ class JobQueue extends ChangeNotifier {
   }
 
   void _onEvent(EngineEvent e) {
+    if (e is ReadyEvent) estimator.fake = e.fake; // fake timings must not calibrate the estimate
     final job = _running;
     if (job == null) return;
     switch (e) {
@@ -246,8 +247,9 @@ class JobQueue extends ChangeNotifier {
     }
     final audio = e.duration;
     if (audio != null && audio > 0) {
-      // "load" happens once per session: it says nothing about the machine's speed.
-      final timings = Map<String, double>.of(_stageSeconds)..remove('load');
+      // Prefer the engine's own wall times (load is 0 when the model was already resident, and record skips zeros);
+      // fall back to the times measured from progress events. Without engine timings, drop load: it is per session.
+      final timings = e.timings ?? (Map<String, double>.of(_stageSeconds)..remove('load'));
       final tokens = {for (final k in ['abc', 'semantic']) if (_tokens[k] != null) k: _tokens[k]!};
       unawaited(estimator.record(stageSeconds: timings, audioSeconds: audio, tokens: tokens).catchError((_) {}));
     }

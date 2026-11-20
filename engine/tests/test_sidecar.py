@@ -364,8 +364,12 @@ def test_low_memory_unloads_before_transcribe(tmp_path, monkeypatch):
     assert _load_stages_across_transcribe(tmp_path, "16", monkeypatch) == [True, False, True]
 
 
+def test_24gb_still_unloads(tmp_path, monkeypatch):
+    assert _load_stages_across_transcribe(tmp_path, "24", monkeypatch) == [True, False, True]
+
+
 def test_enough_memory_keeps_pipeline(tmp_path, monkeypatch):
-    assert _load_stages_across_transcribe(tmp_path, "24", monkeypatch) == [True, False, False]
+    assert _load_stages_across_transcribe(tmp_path, "32", monkeypatch) == [True, False, False]
 
 
 def test_yue2_unload_drops_pipe(tmp_path):

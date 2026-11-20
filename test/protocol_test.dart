@@ -28,6 +28,9 @@ void main() {
     expect((r.dir, r.audio, r.seed, r.duration), ('/d', 'audio.wav', 5, 1.5));
     final e = parse('{"type":"error","job":null,"message":"busy","cancelled":false}') as ErrorEvent;
     expect((e.job, e.message, e.cancelled), (null, 'busy', false));
+    expect(r.timings, isNull);
+    final t = parse('{"type":"result","job":"j","dir":"/d","timings":{"load":0,"abc":17.5,"nar":80}}') as ResultEvent;
+    expect(t.timings, {'load': 0.0, 'abc': 17.5, 'nar': 80.0});
     expect(parse('{"type":"future"}'), isA<UnknownEvent>());
   });
 }

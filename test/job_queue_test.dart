@@ -134,6 +134,28 @@ void main() {
     expect((q.progress, q.remaining, q.stage), (0, null, null), reason: 'idle resets');
   });
 
+  test('result timings calibrate the estimator; fake engines never do', () async {
+    final a = add('a');
+    await settle();
+    engine.emit(ResultEvent(
+      job: a, dir: lib.dirOf(a), audio: 'audio.flac', seed: 1, duration: 70,
+      timings: {'load': 22, 'abc': 17, 'semantic': 55, 'nar': 80, 'vae': 4},
+    ));
+    await settle();
+    await Future<void>.delayed(const Duration(milliseconds: 50)); // record is fire-and-forget
+    expect(q.estimator.runs, 1);
+    expect(q.estimator.speeds['nar'], closeTo(80 / 70, 1e-9));
+    expect(q.estimator.loadSeconds, 22);
+
+    engine.emit(const ReadyEvent(fake: true));
+    final b = add('b');
+    await settle();
+    engine.emit(ResultEvent(job: b, dir: lib.dirOf(b), audio: 'audio.wav', seed: 1, duration: 70, timings: {'nar': 1}));
+    await settle();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(q.estimator.runs, 1, reason: 'fake run ignored');
+  });
+
   test('auto fake engine finishes a job', () async {
     final fast = JobQueue(engine: FakeEngine(), library: lib, estimator: GenerationEstimator(tmp.path));
     final a = fast.enqueueGenerate(style: 's', lyrics: 'l', cot: 'off');

@@ -88,6 +88,7 @@ sealed class EngineEvent {
           audio: j['audio'] as String?,
           seed: (j['seed'] as num?)?.toInt(),
           duration: (j['duration'] as num?)?.toDouble(),
+          timings: (j['timings'] as Map?)?.map((k, v) => MapEntry('$k', (v as num).toDouble())),
         );
       case 'error':
         return ErrorEvent(
@@ -121,11 +122,14 @@ class ProgressEvent extends EngineEvent {
 }
 
 class ResultEvent extends EngineEvent {
-  const ResultEvent({required this.job, required this.dir, this.audio, this.seed, this.duration});
+  const ResultEvent({required this.job, required this.dir, this.audio, this.seed, this.duration, this.timings});
   final String job, dir;
   final String? audio;
   final int? seed;
   final double? duration;
+
+  /// Wall seconds per stage {load, abc, semantic, nar, vae}, generate only; null from older engines.
+  final Map<String, double>? timings;
   @override
   Map<String, dynamic> toJson() => {
         'type': 'result',
@@ -134,6 +138,7 @@ class ResultEvent extends EngineEvent {
         if (audio != null) 'audio': audio,
         if (seed != null) 'seed': seed,
         if (duration != null) 'duration': duration,
+        if (timings != null) 'timings': timings,
       };
 }
 

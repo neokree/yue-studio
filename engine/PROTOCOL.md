@@ -41,7 +41,7 @@ Measured real durations for a 70 s song on an M4 Pro (to animate progress when t
 
 ### Memory (additive)
 
-On Macs with less than 24 GB of memory (sysctl `hw.memsize`; env `YUE2_STUDIO_MEM_GB` overrides it, for tests), the sidecar unloads the YuE2 pipeline before running a `transcribe` job (drop the reference, `gc.collect()`, `torch.mps.empty_cache()` when available). The next `generate` loads it again lazily, so it emits the `load` stage (and a non-zero `timings.load`) as on first use. With 24 GB or more nothing is unloaded. The protocol is otherwise unchanged; the app does not need to do anything.
+On Macs with less than 32 GB of memory (sysctl `hw.memsize`; env `YUE2_STUDIO_MEM_GB` overrides it, for tests), the sidecar unloads the YuE2 pipeline before running a `transcribe` job (drop the reference, `gc.collect()`, `torch.mps.empty_cache()` when available). The next `generate` loads it again lazily, so it emits the `load` stage (and a non-zero `timings.load`) as on first use. With 32 GB or more nothing is unloaded. Measured: SheetSage2 alone peaks at ~15 GB and the resident YuE2 pipeline takes ~9.7 GB, so 24 to 32 GB Macs would swap. The protocol is otherwise unchanged; the app does not need to do anything.
 
 ### Offline guarantee (real mode)
 
