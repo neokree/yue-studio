@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../app/services.dart';
 import '../engine/protocol.dart';
+import '../generation/format.dart';
 import '../generation/generation_view.dart';
 import '../i18n/strings.g.dart';
 import '../library/song.dart';
-import '../queue/stage_label.dart';
 import '../theme/segmented.dart';
 import '../theme/tokens.dart';
 import 'create_draft.dart';
@@ -107,7 +107,7 @@ class _Form extends StatelessWidget {
         children: [
           Text(t.create.title, style: theme.textTheme.titleLarge),
           const SizedBox(height: Space.md),
-          _FieldLabel(t.create.titleLabel, t.create.titleHint),
+          _FieldLabel(t.create.titleLabel, t.create.titleHint, tag: t.create.optional),
           TextField(key: const Key('create.title'), controller: d.title, style: _value),
           const SizedBox(height: Space.md),
           _FieldLabel(t.create.style, t.create.styleHint),
@@ -170,12 +170,19 @@ class _Form extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Flexible(
-                    child: Text(
-                      t.create.estimate(time: formatEta(estimate)),
-                      key: const Key('create.estimate'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(color: c.textSecondary),
+                    child: Tooltip(
+                      message: t.create.estimateTip,
+                      child: Text(
+                        t.create.estimate(time: formatClock(estimate)),
+                        key: const Key('create.estimate'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: TypeSize.caption,
+                          color: c.textSecondary,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -216,8 +223,9 @@ class _Form extends StatelessWidget {
 
 /// Bold label with the quiet hint beside it, above the field (as in the mock).
 class _FieldLabel extends StatelessWidget {
-  const _FieldLabel(this.label, this.hint);
+  const _FieldLabel(this.label, this.hint, {this.tag});
   final String label, hint;
+  final String? tag; // "(Optional)": same line as the label, regular weight
 
   @override
   Widget build(BuildContext context) {
@@ -228,6 +236,11 @@ class _FieldLabel extends StatelessWidget {
         TextSpan(
           children: [
             TextSpan(text: label, style: Theme.of(context).textTheme.labelLarge),
+            if (tag != null)
+              TextSpan(
+                text: ' $tag',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(color: c.textSecondary, fontWeight: FontWeight.w400),
+              ),
             TextSpan(
               text: '  $hint',
               style: TextStyle(fontSize: TypeSize.caption, color: c.textSecondary),

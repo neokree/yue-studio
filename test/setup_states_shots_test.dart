@@ -1,4 +1,4 @@
-// Captures the setup states a reviewer needs: mid-install with finished (filled) steps, dark, error, blocked machine, 16 GB warning.
+// Captures the setup states a reviewer needs: mid-install with finished (filled) steps, dark, error, low disk, requirements page.
 // Only runs with B_SHOTS_DIR=<dir>; Roboto stands in for the system font.
 import 'dart:async';
 import 'dart:io';
@@ -12,6 +12,7 @@ import 'package:yue2_studio/app/paths.dart';
 import 'package:yue2_studio/setup/installer.dart';
 import 'package:yue2_studio/setup/manifest.dart';
 import 'package:yue2_studio/setup/requirements.dart';
+import 'package:yue2_studio/setup/requirements_gate.dart';
 import 'package:yue2_studio/setup/setup_screen.dart';
 import 'package:yue2_studio/setup/step_runner.dart';
 import 'package:yue2_studio/theme/theme.dart';
@@ -114,16 +115,34 @@ void main() {
     await shot(t, 'setup-error');
   }, skip: _dir == null);
 
-  testWidgets('setup-blocked and 16 GB warning', (t) async {
-    final blocked = make((_, _) async {}, hw: const Hardware(arm64: true, macos: '13.6', memoryBytes: 8 * Requirements.gib, freeDiskBytes: 40 * Requirements.gb));
+  testWidgets('setup-blocked: low disk', (t) async {
+    final blocked = make((_, _) async {}, hw: const Hardware(memoryBytes: 32 * Requirements.gib, freeDiskBytes: 9 * Requirements.gb));
     await show(t, blocked, Brightness.light);
     await t.pump();
     await shot(t, 'setup-blocked');
-    await t.pumpWidget(const SizedBox()); // a fresh screen, so it runs its own preflight
-    final warn = make((_, _) async {}, hw: const Hardware(arm64: true, macos: '15.0', memoryBytes: 16 * Requirements.gib, freeDiskBytes: 40 * Requirements.gb));
-    await show(t, warn, Brightness.light);
-    await t.pump();
-    await shot(t, 'setup-warn16');
   }, skip: _dir == null);
-}
 
+  // The requirements page (DESIGN.md screen 0): 8 GB has no button, 16 GB has "Try anyway".
+  for (final gb in [8, 16]) {
+    for (final b in [Brightness.light, Brightness.dark]) {
+      testWidgets('requirements ${gb}gb ${b.name}', (t) async {
+        t.view.physicalSize = const Size(1040, 780);
+        t.view.devicePixelRatio = 1;
+        addTearDown(t.view.reset);
+        t.platformDispatcher.platformBrightnessTestValue = b;
+        addTearDown(t.platformDispatcher.clearPlatformBrightnessTestValue);
+        final base = buildTheme(b);
+        await t.pumpWidget(RepaintBoundary(
+          key: key,
+          child: MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: base.copyWith(textTheme: base.textTheme.apply(fontFamily: 'Roboto')),
+            home: RequirementsScreen(memoryGb: gb.toDouble(), onTryAnyway: gb >= Requirements.minMemoryGb ? () {} : null),
+          ),
+        ));
+        await t.pump();
+        await shot(t, 'requirements-${gb}gb-${b.name}');
+      }, skip: _dir == null);
+    }
+  }
+}

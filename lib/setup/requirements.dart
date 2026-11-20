@@ -1,16 +1,16 @@
 import 'dart:io';
 
 /// System requirements and the preflight (CONTRACT.md section 2 table and section 3.1). The only place with the thresholds.
+/// Apple Silicon and macOS 14 are enforced by macOS itself (arm64-only binary, LSMinimumSystemVersion): no app logic for them.
 /// Memory is in GiB (a "16 GB" Mac reports 16 * 2^30 bytes); disk is decimal GB, as df and the manifest count.
 class Requirements {
-  static const minMacOS = 14;
+  /// Below this the requirements page has no way forward.
   static const minMemoryGb = 16;
+
+  /// Below this (and from [minMemoryGb] up) the requirements page offers "Try anyway".
   static const recommendedMemoryGb = 24;
   static const minFreeDiskGb = 15;
   static const recommendedFreeDiskGb = 25;
-
-  /// The non-blocking warning shows at exactly this much memory (16 GB up to, not including, 17 GB).
-  static const warnMemoryGb = 16;
 
   static const gib = 1073741824;
   static const gb = 1000000000;
@@ -18,75 +18,57 @@ class Requirements {
 
 /// What the probe found. null = could not be told: never blocks (a false block is worse than a late failure).
 class Hardware {
-  const Hardware({this.arm64, this.macos, this.memoryBytes, this.freeDiskBytes});
+  const Hardware({this.memoryBytes, this.freeDiskBytes});
 
-  /// Apple Silicon.
-  final bool? arm64;
-
-  /// Product version, "14.5" or "15.1.2".
-  final String? macos;
   final int? memoryBytes, freeDiskBytes;
 
-  int? get macosMajor => macos == null ? null : int.tryParse(macos!.split('.').first);
   double? get memoryGb => memoryBytes == null ? null : memoryBytes! / Requirements.gib;
 
   /// A machine that meets the recommended specs: what tests see on Linux.
-  static const passing = Hardware(arm64: true, macos: '15.0', memoryBytes: 32 * Requirements.gib, freeDiskBytes: 100 * Requirements.gb);
+  static const passing = Hardware(memoryBytes: 32 * Requirements.gib, freeDiskBytes: 100 * Requirements.gb);
 
-  /// Test override, YUE2_STUDIO_TEST_HW="mem=8,disk=5,macos=13,arch=x86_64" (mem and disk in GB). Unknown keys are ignored.
+  /// Test override, YUE2_STUDIO_TEST_HW="mem=8,disk=5" (GB). Unknown keys are ignored.
   Hardware overridden(String? spec) {
     if (spec == null || spec.trim().isEmpty) return this;
     var h = this;
     for (final part in spec.trim().split(RegExp(r'[,;\s]+'))) {
       final kv = part.split('=');
-      if (kv.length != 2) continue;
-      final v = kv[1].trim();
-      final n = num.tryParse(v);
+      final n = kv.length == 2 ? num.tryParse(kv[1].trim()) : null;
+      if (n == null) continue;
       h = switch (kv[0].trim()) {
-        'mem' when n != null => h._with(memoryBytes: (n * Requirements.gib).round()),
-        'disk' when n != null => h._with(freeDiskBytes: (n * Requirements.gb).round()),
-        'macos' => h._with(macos: v),
-        'arch' => h._with(arm64: v == 'arm64'),
+        'mem' => Hardware(memoryBytes: (n * Requirements.gib).round(), freeDiskBytes: h.freeDiskBytes),
+        'disk' => Hardware(memoryBytes: h.memoryBytes, freeDiskBytes: (n * Requirements.gb).round()),
         _ => h,
       };
     }
     return h;
   }
-
-  Hardware _with({bool? arm64, String? macos, int? memoryBytes, int? freeDiskBytes}) => Hardware(
-        arm64: arm64 ?? this.arm64,
-        macos: macos ?? this.macos,
-        memoryBytes: memoryBytes ?? this.memoryBytes,
-        freeDiskBytes: freeDiskBytes ?? this.freeDiskBytes,
-      );
 }
 
-enum Problem { intel, macos, memory, disk }
+/// What the requirements page does for this Mac's memory. Unknown memory is [ok]: the page never blocks on a guess.
+enum MemoryTier { ok, tryAnyway, blocked }
+
+MemoryTier memoryTier(Hardware h) {
+  final mem = h.memoryGb;
+  if (mem == null || mem >= Requirements.recommendedMemoryGb) return MemoryTier.ok;
+  return mem >= Requirements.minMemoryGb ? MemoryTier.tryAnyway : MemoryTier.blocked;
+}
+
+enum Problem { disk }
 
 class Preflight {
-  const Preflight(this.hardware, this.blocks, {required this.warnMemory});
+  const Preflight(this.hardware, this.blocks);
   final Hardware hardware;
 
   /// Problems that stop the install, in display order.
   final List<Problem> blocks;
-
-  /// 16 GB: allowed, with a line telling the user to close other apps.
-  final bool warnMemory;
   bool get ok => blocks.isEmpty;
 }
 
+/// Setup's own check: free disk. (Memory is the requirements page, before setup.)
 Preflight checkRequirements(Hardware h) {
-  final mem = h.memoryGb, major = h.macosMajor, disk = h.freeDiskBytes;
-  return Preflight(
-    h,
-    [
-      if (h.arm64 == false) Problem.intel,
-      if (major != null && major < Requirements.minMacOS) Problem.macos,
-      if (mem != null && mem < Requirements.minMemoryGb) Problem.memory,
-      if (disk != null && disk < Requirements.minFreeDiskGb * Requirements.gb) Problem.disk,
-    ],
-    warnMemory: mem != null && mem >= Requirements.warnMemoryGb && mem < Requirements.warnMemoryGb + 1,
-  );
+  final disk = h.freeDiskBytes;
+  return Preflight(h, [if (disk != null && disk < Requirements.minFreeDiskGb * Requirements.gb) Problem.disk]);
 }
 
 typedef FreeBytes = Future<int?> Function(String dir);
@@ -119,20 +101,13 @@ class SystemProbe implements HardwareProbe {
   }
 
   Future<Hardware> _mac(String dataDir) async {
-    final arm = await _out('sysctl', ['-n', 'hw.optional.arm64']);
-    final arch = arm == null ? await _out('uname', ['-m']) : null;
     final mem = int.tryParse(await _out('sysctl', ['-n', 'hw.memsize']) ?? '');
     // The data dir doesn't exist yet on first run: ask about the closest folder that does (same volume).
     var dir = Directory(dataDir);
     while (!dir.existsSync() && dir.parent.path != dir.path) {
       dir = dir.parent;
     }
-    return Hardware(
-      arm64: arm != null ? arm == '1' : (arch == null ? null : arch == 'arm64'),
-      macos: await _out('sw_vers', ['-productVersion']),
-      memoryBytes: mem,
-      freeDiskBytes: await freeBytes(dir.path),
-    );
+    return Hardware(memoryBytes: mem, freeDiskBytes: await freeBytes(dir.path));
   }
 
   Future<String?> _out(String exe, List<String> args) async {

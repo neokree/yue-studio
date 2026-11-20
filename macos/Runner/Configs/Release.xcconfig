@@ -1,2 +1,6 @@
 #include "../../Flutter/Flutter-Release.xcconfig"
 #include "Warnings.xcconfig"
+
+// arm64 only: the bundled uv is arm64 only, and macOS keeps Intel Macs out (tool/make_dmg.sh thins and checks the frameworks).
+ARCHS = arm64
+ONLY_ACTIVE_ARCH = NO

@@ -35,5 +35,20 @@ void main() {
     await p.prepare();
     expect(File(p.sidecar).existsSync(), true);
     expect(File(p.manifest).existsSync(), true);
+    expect(File('${p.engineDir}/backends.py').existsSync(), true, reason: 'sidecar.py imports it');
+  });
+
+  test('prepare overwrites a stale engine dir on every launch', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    final tmp = Directory.systemTemp.createTempSync('yue2stale');
+    addTearDown(() => tmp.deleteSync(recursive: true));
+    final p = Paths.resolve({'YUE2_STUDIO_DATA_DIR': tmp.path});
+    await p.prepare();
+    final good = File(p.sidecar).readAsStringSync();
+    File(p.sidecar).writeAsStringSync('stale');
+    File('${p.engineDir}/backends.py').deleteSync();
+    await p.prepare();
+    expect(File(p.sidecar).readAsStringSync(), good);
+    expect(File('${p.engineDir}/backends.py').existsSync(), true);
   });
 }

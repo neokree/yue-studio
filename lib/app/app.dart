@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../i18n/strings.g.dart';
+import '../setup/requirements_gate.dart';
 import '../setup/setup_screen.dart';
 import '../theme/theme.dart';
 import 'services.dart';
@@ -49,6 +50,6 @@ class _StudioAppState extends State<StudioApp> {
     darkTheme: buildTheme(Brightness.dark),
     themeMode: ThemeMode.system,
     builder: (context, child) => RepaintBoundary(key: const Key('app.screenshot'), child: child),
-    home: _ready ? Shell(services: widget.services) : SetupScreen(installer: widget.services.installer),
+    home: _ready ? Shell(services: widget.services) : RequirementsGate(installer: widget.services.installer, child: SetupScreen(installer: widget.services.installer)),
   );
 }

@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
 import '../app/paths.dart';
 import 'engine.dart';
 import 'protocol.dart';
@@ -52,9 +54,27 @@ class ProcessEngine implements Engine {
     unawaited(proc.exitCode.then((code) {
       if (_proc == proc) _proc = null;
       if (!_events.isClosed) {
-        _events.add(ErrorEvent(message: 'Engine exited (code $code)\n${stderrTail.join('\n')}'));
+        _logExit(code);
+        _events.add(ErrorEvent(message: exitMessage(code, stderrTail)));
       }
     }));
+  }
+
+  /// One line for the failed song: the last non-blank stderr line (a Python traceback ends with the exception).
+  @visibleForTesting
+  static String exitMessage(int code, List<String> stderrTail) {
+    final last = stderrTail.map((l) => l.trim()).lastWhere((l) => l.isNotEmpty && !l.startsWith('stdout: '), orElse: () => '');
+    final short = last.length > 200 ? '${last.substring(0, 200)}...' : last;
+    return short.isEmpty ? 'Engine exited (code $code)' : 'Engine exited (code $code): $short';
+  }
+
+  /// The full stderr tail goes to <data dir>/engine.log (the song error only carries the last line).
+  void _logExit(int code) {
+    try {
+      File('${paths.dataDir}/engine.log').writeAsStringSync('Engine exited (code $code)\n${stderrTail.join('\n')}\n');
+    } on FileSystemException {
+      // best effort
+    }
   }
 
   void _onLine(String line) {

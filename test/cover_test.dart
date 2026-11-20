@@ -98,7 +98,7 @@ void main() {
     }
     expect(find.text('take.wav'), findsOneWidget);
     expect(t.widget<Text>(find.byKey(const Key('cover.filemeta'))).data, contains('0:02'));
-    expect(find.text('About 1 min 40 s on this Mac'), findsOneWidget);
+    expect(find.text('~ 1:40'), findsOneWidget);
 
     // missing score
     await t.tap(find.byKey(const Key('cover.generate')));
@@ -179,7 +179,7 @@ void main() {
       }
       await t.tap(find.byKey(const Key('score.view.notation'))); // no WebView here: shows the one-line fallback note
       await t.pump();
-      expect(find.text('About 2 min 40 s on this Mac'), findsOneWidget);
+      expect(find.text('~ 2:40'), findsOneWidget);
       expect(find.text('Notation preview is not available here, showing the text.'), findsOneWidget);
       await t.runAsync(() async {
         final img = await (shot.currentContext!.findRenderObject() as RenderRepaintBoundary).toImage();

@@ -19,11 +19,7 @@
     "noDisk": "Not enough free disk space. Setup needs $need and only $free is available. Free up space, then press Retry.",
     "recheck": "Check again",
     "preflight": {
-      "intel": "This Mac has an Intel processor. YuE2 Studio needs a Mac with Apple Silicon (M1 or later).",
-      "macos": "This Mac runs macOS $have. YuE2 Studio needs macOS $need or later.",
-      "memory": "This Mac has $have of memory. YuE2 Studio needs at least $need.",
-      "disk": "Only $have of disk space is free. Setup needs at least $need free. Free up space, then press Check again.",
-      "warnMemory": "This Mac has $have of memory. It works, but close other apps while generating."
+      "disk": "Only $have of disk space is free. Setup needs at least $need free. Free up space, then press Check again."
     },
     "fine": "Unofficial client, not affiliated with the YuE2 authors.",
     "phase": {
@@ -36,10 +32,19 @@
     "stepFailed": "Couldn't finish $step.",
     "recovery": "Check your internet connection and free disk space, then press Retry. Finished steps are kept and setup continues from here."
   },
+  "requirements": {
+    "titlePre": "YuE",
+    "titlePost": " Studio minimum requirements not met",
+    "statementPre": "YuE",
+    "statementPost": " Studio needs at least $gb GB of RAM to work properly",
+    "yourMac": "Your Mac has",
+    "tryAnyway": "Try anyway"
+  },
   "create": {
     "title": "Create",
     "titleLabel": "Title",
-    "titleHint": "Optional. Empty uses the first lyric line, or Untitled and the date.",
+    "optional": "(Optional)",
+    "titleHint": "Empty uses the first lyric line, or Untitled and the date.",
     "style": "Style",
     "styleHint": "Genre, instruments, voice, language, tempo",
     "stylePlaceholder": "English, warm piano pop, expressive female voice, acoustic piano, 88 BPM",
@@ -52,7 +57,8 @@
     "planOff": "None",
     "seed": "Seed",
     "seedHint": "random",
-    "estimate": "About $time on this Mac",
+    "estimate": "~ $time",
+    "estimateTip": "Estimated time on this Mac",
     "generate": "Add to Queue",
     "untitled": "Untitled"
   },
@@ -84,7 +90,8 @@
     "lyricsPlaceholder": "[Verse]\nWrite your lyrics here\n\n[Chorus]\n...",
     "seed": "Seed",
     "seedHint": "random",
-    "estimate": "About $time on this Mac",
+    "estimate": "~ $time",
+    "estimateTip": "Estimated time on this Mac",
     "generate": "Add to Queue",
     "queued": "Added to the queue",
     "needFile": "Choose a recording first.",
@@ -92,7 +99,8 @@
     "needStyle": "Describe the new style first.",
     "needLyrics": "Write the lyrics first.",
     "titleLabel": "Title",
-    "titleHint": "Optional, defaults to the first lyric line",
+    "optional": "(Optional)",
+    "titleHint": "Defaults to the first lyric line",
     "titlePlaceholder": "Untitled",
     "estimateIdle": "Choose a recording for an estimate"
   },

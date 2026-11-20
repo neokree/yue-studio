@@ -50,7 +50,7 @@ void main() {
     await boot(t);
     final add = find.byKey(const Key('create.generate'));
     expect(t.widget<FilledButton>(add).onPressed, isNull, reason: 'needs style and lyrics');
-    expect(find.textContaining('About'), findsOneWidget, reason: 'estimate, never a static string');
+    expect(find.textContaining('~ '), findsOneWidget, reason: 'estimate, never a static string');
 
     await t.enterText(find.byKey(const Key('create.style')), 'warm piano pop');
     await t.enterText(find.byKey(const Key('create.lyrics')), '[Verse]\nNeon fades along the lane');

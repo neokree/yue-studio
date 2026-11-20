@@ -14,6 +14,7 @@ import '../queue/stage_label.dart';
 import '../theme/theme.dart';
 import '../theme/tokens.dart';
 import 'services.dart';
+import 'window.dart';
 
 /// Window: sidebar on the left (translucent on macOS), content on the right, player bar under the content.
 class Shell extends StatelessWidget {
@@ -30,7 +31,18 @@ class Shell extends StatelessWidget {
     return Scaffold(
       // With vibrancy the window itself is the blur: nothing opaque may sit behind the sidebar.
       backgroundColor: Chrome.vibrancy ? Colors.transparent : c.background,
-      body: Row(
+      body: Stack(
+        children: [
+          Positioned.fill(child: _body(s, c)),
+          // Drag / double-click zone over the title bar. Sidebar: above its 38 px inset; content: above its padding.
+          const Positioned(top: 0, left: 0, width: Layout.sidebarWidth, child: TitleBarStrip(height: 38)),
+          const Positioned(top: 0, left: Layout.sidebarWidth, right: 0, child: TitleBarStrip(height: Space.padV)),
+        ],
+      ),
+    );
+  }
+
+  Widget _body(Services s, AppColors c) => Row(
         children: [
           _Sidebar(services: s),
           Expanded(
@@ -63,9 +75,7 @@ class Shell extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
+      );
 }
 
 /// Keeps every screen alive (an uploaded file or a half-written score must survive a tab switch) and cross-fades

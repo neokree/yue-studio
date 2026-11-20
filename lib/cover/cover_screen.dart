@@ -271,7 +271,7 @@ class _CoverScreenState extends State<CoverScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _Label(t.cover.titleLabel, t.cover.titleHint),
+                          _Label(t.cover.titleLabel, t.cover.titleHint, tag: t.cover.optional),
                           TextField(
                             key: const Key('cover.title'),
                             controller: _title,
@@ -322,20 +322,24 @@ class _CoverScreenState extends State<CoverScreen> {
                   ),
                   ListenableBuilder(
                     listenable: _lyrics,
-                    builder: (_, _) => Text(
-                      _seconds == null
-                          ? t.cover.estimateIdle
-                          : t.cover.estimate(
-                              time: formatDuration(widget.estimate(lyrics: _lyrics.text, sourceSeconds: _seconds)),
-                            ),
-                      key: const Key('cover.estimate'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: c.textTertiary,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
-                    ),
+                    builder: (_, _) {
+                      final text = Text(
+                        _seconds == null
+                            ? t.cover.estimateIdle
+                            : t.cover.estimate(
+                                time: formatClock(widget.estimate(lyrics: _lyrics.text, sourceSeconds: _seconds)),
+                              ),
+                        key: const Key('cover.estimate'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: TypeSize.caption,
+                          color: c.textSecondary,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      );
+                      return _seconds == null ? text : Tooltip(message: t.cover.estimateTip, child: text);
+                    },
                   ),
                   const SizedBox(width: 14),
                   FilledButton(
@@ -355,8 +359,9 @@ class _CoverScreenState extends State<CoverScreen> {
 
 /// Bold label with the quiet hint beside it, one line, as in Create.
 class _Label extends StatelessWidget {
-  const _Label(this.title, this.hint);
+  const _Label(this.title, this.hint, {this.tag});
   final String title, hint;
+  final String? tag; // "(Optional)": same line as the label, regular weight
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -365,6 +370,14 @@ class _Label extends StatelessWidget {
       TextSpan(
         children: [
           TextSpan(text: title, style: Theme.of(context).textTheme.labelLarge),
+          if (tag != null)
+            TextSpan(
+              text: ' $tag',
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: AppColors.of(context).textSecondary,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
           TextSpan(
             text: '  $hint',
             style: TextStyle(fontSize: TypeSize.caption, color: AppColors.of(context).textTertiary),

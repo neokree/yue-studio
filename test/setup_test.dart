@@ -292,16 +292,15 @@ void main() {
     expect(r.ran, isEmpty);
   });
 
-  testWidgets('blocked machine: names the problem, runs nothing, button becomes Check again', (tester) async {
+  testWidgets('low free disk: names the problem, runs nothing, button becomes Check again', (tester) async {
     final r = FakeRunner((_, _) async {});
-    final i = Installer(paths: paths, manifest: manifest, runner: r, freeBytes: (_) async => 100000000000, probe: _Fixed(const Hardware(arm64: false, macos: '13.6', memoryBytes: 8 * Requirements.gib, freeDiskBytes: 5 * Requirements.gb)));
+    final i = Installer(paths: paths, manifest: manifest, runner: r, freeBytes: (_) async => 100000000000, probe: _Fixed(const Hardware(memoryBytes: 8 * Requirements.gib, freeDiskBytes: 5 * Requirements.gb)));
     await show(tester, i);
     await tester.pump();
-    for (final k in ['intel', 'macos', 'memory', 'disk']) {
-      expect(find.byKey(ValueKey('setup.preflight.$k')), findsOneWidget, reason: k);
-    }
-    expect(find.textContaining('macOS 13.6'), findsOneWidget);
-    expect(find.textContaining('8 GB of memory'), findsOneWidget);
+    expect(find.byKey(const ValueKey('setup.preflight.disk')), findsOneWidget);
+    expect(find.textContaining('Only 5.0 GB of disk space is free'), findsOneWidget);
+    // memory is the requirements page's business, not a setup line
+    expect(find.textContaining('memory'), findsNothing);
     expect(find.text('Check again'), findsOneWidget);
     await tester.tap(find.byKey(const Key('setup.install')));
     await tester.pump();
@@ -310,12 +309,12 @@ void main() {
     expect(i.running, isFalse);
   });
 
-  testWidgets('16 GB: warning line, install still runs', (tester) async {
+  testWidgets('16 GB Mac: no warning line in setup, install runs', (tester) async {
     final r = FakeRunner((_, _) async {});
-    final i = Installer(paths: paths, manifest: manifest, runner: r, freeBytes: (_) async => 100000000000, probe: _Fixed(const Hardware(arm64: true, macos: '14.0', memoryBytes: 16 * Requirements.gib, freeDiskBytes: 60 * Requirements.gb)));
+    final i = Installer(paths: paths, manifest: manifest, runner: r, freeBytes: (_) async => 100000000000, probe: _Fixed(const Hardware(memoryBytes: 16 * Requirements.gib, freeDiskBytes: 60 * Requirements.gb)));
     await show(tester, i);
     await tester.pump();
-    expect(find.text('This Mac has 16 GB of memory. It works, but close other apps while generating.'), findsOneWidget);
+    expect(find.textContaining('close other apps'), findsNothing);
     expect(find.text('Install'), findsOneWidget);
     await i.install();
     expect(r.ran, ['py', 'venv', 'model']);

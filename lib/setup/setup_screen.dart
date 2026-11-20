@@ -88,12 +88,7 @@ class _SetupScreenState extends State<SetupScreen> {
   }
 }
 
-String _gb(double v) => '${v.toStringAsFixed(v == v.roundToDouble() ? 0 : 1)} GB';
-
 String _problemText(Problem p, Hardware h) => switch (p) {
-      Problem.intel => t.setup.preflight.intel,
-      Problem.macos => t.setup.preflight.macos(have: h.macos ?? '', need: '${Requirements.minMacOS}'),
-      Problem.memory => t.setup.preflight.memory(have: _gb(h.memoryGb ?? 0), need: _gb(Requirements.minMemoryGb.toDouble())),
       Problem.disk => t.setup.preflight.disk(have: formatBytes(h.freeDiskBytes ?? 0), need: '${Requirements.minFreeDiskGb} GB'),
     };
 
@@ -117,10 +112,10 @@ class _Column extends StatelessWidget {
       children: [
         YueLogo(size: 64, color: c.accent),
         const SizedBox(height: 14),
-        _Title(color: c.text, accent: c.accent),
+        YueText(key: const Key('setup.title'), pre: t.setup.titlePre, post: t.setup.titlePost, size: 26, weight: FontWeight.w700, letterSpacing: -0.5, color: c.text, accent: c.accent),
         const SizedBox(height: 6),
         Text(installer.complete ? t.setup.ready : t.setup.subtitle, style: _t(14, c.textSecondary)),
-        if (pre != null && !installer.complete && (pre.blocks.isNotEmpty || pre.warnMemory))
+        if (pre != null && !installer.complete && pre.blocks.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 14),
             child: Column(
@@ -130,12 +125,6 @@ class _Column extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Text(_problemText(p, pre.hardware), key: ValueKey('setup.preflight.${p.name}'), style: _t(13, c.error, weight: FontWeight.w600)),
-                  ),
-                if (pre.warnMemory)
-                  Text(
-                    t.setup.preflight.warnMemory(have: _gb(pre.hardware.memoryGb ?? 0)),
-                    key: const Key('setup.preflight.warn'),
-                    style: _t(13, c.textSecondary),
                   ),
               ],
             ),
@@ -190,29 +179,32 @@ class _Column extends StatelessWidget {
   }
 }
 
-/// "Setting up YuE² Studio": the 2 is a superscript at ~62%, bold, in the accent colour.
-class _Title extends StatelessWidget {
-  const _Title({required this.color, required this.accent});
+/// "YuE² Studio" text: the 2 is a superscript at ~62%, bold, in the accent colour. [pre] ends at "YuE", [post] starts after the 2.
+class YueText extends StatelessWidget {
+  const YueText({super.key, required this.pre, required this.post, required this.size, required this.weight, required this.color, required this.accent, this.letterSpacing = 0, this.align});
+  final String pre, post;
+  final double size, letterSpacing;
+  final FontWeight weight;
   final Color color, accent;
+  final TextAlign? align;
 
   @override
   Widget build(BuildContext context) {
-    const size = 26.0;
-    final base = TextStyle(fontSize: size, fontWeight: FontWeight.w700, letterSpacing: -0.5, color: color);
+    final base = TextStyle(fontSize: size, fontWeight: weight, letterSpacing: letterSpacing, color: color);
     return Semantics(
       header: true,
-      label: '${t.setup.titlePre}2${t.setup.titlePost}',
+      label: '${pre}2$post',
       excludeSemantics: true,
       child: Text.rich(
-        key: const Key('setup.title'),
         TextSpan(style: base, children: [
-          TextSpan(text: t.setup.titlePre),
+          TextSpan(text: pre),
           WidgetSpan(
             alignment: PlaceholderAlignment.top,
-            child: Text('2', style: base.copyWith(fontSize: size * 0.62, color: accent, height: 1.0)),
+            child: Text('2', style: base.copyWith(fontSize: size * 0.62, fontWeight: FontWeight.w700, color: accent, height: 1.0)),
           ),
-          TextSpan(text: t.setup.titlePost),
+          TextSpan(text: post),
         ]),
+        textAlign: align,
       ),
     );
   }

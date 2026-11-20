@@ -14,20 +14,13 @@ The interface is in English.
 
 ## System requirements
 
-Minimum:
+- Mac with Apple Silicon (M1 or later). Intel Macs are not supported.
+- macOS 14 or later.
+- Memory: 24 GB of RAM to work properly. With 16 to 23 GB you can try anyway. With less than 16 GB the app cannot go on.
+- 15 GB of free disk space (25 GB recommended).
+- Internet connection for the first run.
 
-- Mac with Apple Silicon (Intel Macs are not supported)
-- macOS 14 or later
-- 16 GB of memory
-- 15 GB of free disk space
-- Internet connection for the first run
-
-Recommended:
-
-- 24 GB of memory
-- 25 GB of free disk space
-
-The app checks these before it downloads anything. It stops on an Intel Mac, on macOS older than 14, with less than 16 GB of memory, or with less than 15 GB of free disk space. With exactly 16 GB of memory it runs, but it asks you to close other apps while generating.
+macOS itself keeps out Intel Macs and macOS older than 14. The app checks the memory before it downloads anything. With less than 24 GB it shows a page that says so. From 16 GB up, the page has a **Try anyway** button that opens setup. The app remembers that choice and does not show the page again. Setup checks the free disk space.
 
 On Macs with less than 24 GB of memory, the app unloads the song model before a Cover transcription and loads it again afterwards.
 
@@ -57,7 +50,7 @@ xattr -dr com.apple.quarantine "/Applications/YuE² Studio.app"
 
 ## First run
 
-On first launch the app runs a preflight check, then installs everything it needs:
+On first launch the app checks the memory (see System requirements), then installs everything it needs:
 
 - The engine, its Python environment and all models, including the models for Cover. The total download is about 10 to 11 GB.
 - Progress for each step.

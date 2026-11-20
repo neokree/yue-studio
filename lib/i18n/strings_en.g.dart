@@ -44,6 +44,7 @@ class Translations with BaseTranslations<AppLocale, Translations> {
 	late final Translations$app$en app = Translations$app$en._(_root);
 	late final Translations$nav$en nav = Translations$nav$en._(_root);
 	late final Translations$setup$en setup = Translations$setup$en._(_root);
+	late final Translations$requirements$en requirements = Translations$requirements$en._(_root);
 	late final Translations$create$en create = Translations$create$en._(_root);
 	late final Translations$cover$en cover = Translations$cover$en._(_root);
 	late final Translations$library$en library = Translations$library$en._(_root);
@@ -138,6 +139,33 @@ class Translations$setup$en {
 	String get recovery => 'Check your internet connection and free disk space, then press Retry. Finished steps are kept and setup continues from here.';
 }
 
+// Path: requirements
+class Translations$requirements$en {
+	Translations$requirements$en._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'YuE'
+	String get titlePre => 'YuE';
+
+	/// en: ' Studio minimum requirements not met'
+	String get titlePost => ' Studio minimum requirements not met';
+
+	/// en: 'YuE'
+	String get statementPre => 'YuE';
+
+	/// en: ' Studio needs at least $gb GB of RAM to work properly'
+	String statementPost({required Object gb}) => ' Studio needs at least ${gb} GB of RAM to work properly';
+
+	/// en: 'Your Mac has'
+	String get yourMac => 'Your Mac has';
+
+	/// en: 'Try anyway'
+	String get tryAnyway => 'Try anyway';
+}
+
 // Path: create
 class Translations$create$en {
 	Translations$create$en._(this._root);
@@ -152,8 +180,11 @@ class Translations$create$en {
 	/// en: 'Title'
 	String get titleLabel => 'Title';
 
-	/// en: 'Optional. Empty uses the first lyric line, or Untitled and the date.'
-	String get titleHint => 'Optional. Empty uses the first lyric line, or Untitled and the date.';
+	/// en: '(Optional)'
+	String get optional => '(Optional)';
+
+	/// en: 'Empty uses the first lyric line, or Untitled and the date.'
+	String get titleHint => 'Empty uses the first lyric line, or Untitled and the date.';
 
 	/// en: 'Style'
 	String get style => 'Style';
@@ -191,8 +222,11 @@ class Translations$create$en {
 	/// en: 'random'
 	String get seedHint => 'random';
 
-	/// en: 'About $time on this Mac'
-	String estimate({required Object time}) => 'About ${time} on this Mac';
+	/// en: '~ $time'
+	String estimate({required Object time}) => '~ ${time}';
+
+	/// en: 'Estimated time on this Mac'
+	String get estimateTip => 'Estimated time on this Mac';
 
 	/// en: 'Add to Queue'
 	String get generate => 'Add to Queue';
@@ -290,8 +324,11 @@ class Translations$cover$en {
 	/// en: 'random'
 	String get seedHint => 'random';
 
-	/// en: 'About $time on this Mac'
-	String estimate({required Object time}) => 'About ${time} on this Mac';
+	/// en: '~ $time'
+	String estimate({required Object time}) => '~ ${time}';
+
+	/// en: 'Estimated time on this Mac'
+	String get estimateTip => 'Estimated time on this Mac';
 
 	/// en: 'Add to Queue'
 	String get generate => 'Add to Queue';
@@ -314,8 +351,11 @@ class Translations$cover$en {
 	/// en: 'Title'
 	String get titleLabel => 'Title';
 
-	/// en: 'Optional, defaults to the first lyric line'
-	String get titleHint => 'Optional, defaults to the first lyric line';
+	/// en: '(Optional)'
+	String get optional => '(Optional)';
+
+	/// en: 'Defaults to the first lyric line'
+	String get titleHint => 'Defaults to the first lyric line';
 
 	/// en: 'Untitled'
 	String get titlePlaceholder => 'Untitled';
@@ -554,20 +594,8 @@ class Translations$setup$preflight$en {
 
 	// Translations
 
-	/// en: 'This Mac has an Intel processor. YuE2 Studio needs a Mac with Apple Silicon (M1 or later).'
-	String get intel => 'This Mac has an Intel processor. YuE2 Studio needs a Mac with Apple Silicon (M1 or later).';
-
-	/// en: 'This Mac runs macOS $have. YuE2 Studio needs macOS $need or later.'
-	String macos({required Object have, required Object need}) => 'This Mac runs macOS ${have}. YuE2 Studio needs macOS ${need} or later.';
-
-	/// en: 'This Mac has $have of memory. YuE2 Studio needs at least $need.'
-	String memory({required Object have, required Object need}) => 'This Mac has ${have} of memory. YuE2 Studio needs at least ${need}.';
-
 	/// en: 'Only $have of disk space is free. Setup needs at least $need free. Free up space, then press Check again.'
 	String disk({required Object have, required Object need}) => 'Only ${have} of disk space is free. Setup needs at least ${need} free. Free up space, then press Check again.';
-
-	/// en: 'This Mac has $have of memory. It works, but close other apps while generating.'
-	String warnMemory({required Object have}) => 'This Mac has ${have} of memory. It works, but close other apps while generating.';
 }
 
 // Path: setup.phase
@@ -844,11 +872,7 @@ extension on Translations {
 			'setup.progress' => ({required Object done, required Object total}) => '${done} of ${total}',
 			'setup.noDisk' => ({required Object need, required Object free}) => 'Not enough free disk space. Setup needs ${need} and only ${free} is available. Free up space, then press Retry.',
 			'setup.recheck' => 'Check again',
-			'setup.preflight.intel' => 'This Mac has an Intel processor. YuE2 Studio needs a Mac with Apple Silicon (M1 or later).',
-			'setup.preflight.macos' => ({required Object have, required Object need}) => 'This Mac runs macOS ${have}. YuE2 Studio needs macOS ${need} or later.',
-			'setup.preflight.memory' => ({required Object have, required Object need}) => 'This Mac has ${have} of memory. YuE2 Studio needs at least ${need}.',
 			'setup.preflight.disk' => ({required Object have, required Object need}) => 'Only ${have} of disk space is free. Setup needs at least ${need} free. Free up space, then press Check again.',
-			'setup.preflight.warnMemory' => ({required Object have}) => 'This Mac has ${have} of memory. It works, but close other apps while generating.',
 			'setup.fine' => 'Unofficial client, not affiliated with the YuE2 authors.',
 			'setup.phase.connecting' => 'Connecting',
 			'setup.phase.python' => 'Installing Python',
@@ -857,9 +881,16 @@ extension on Translations {
 			'setup.ready' => 'Everything is installed. Opening your studio.',
 			'setup.stepFailed' => ({required Object step}) => 'Couldn\'t finish ${step}.',
 			'setup.recovery' => 'Check your internet connection and free disk space, then press Retry. Finished steps are kept and setup continues from here.',
+			'requirements.titlePre' => 'YuE',
+			'requirements.titlePost' => ' Studio minimum requirements not met',
+			'requirements.statementPre' => 'YuE',
+			'requirements.statementPost' => ({required Object gb}) => ' Studio needs at least ${gb} GB of RAM to work properly',
+			'requirements.yourMac' => 'Your Mac has',
+			'requirements.tryAnyway' => 'Try anyway',
 			'create.title' => 'Create',
 			'create.titleLabel' => 'Title',
-			'create.titleHint' => 'Optional. Empty uses the first lyric line, or Untitled and the date.',
+			'create.optional' => '(Optional)',
+			'create.titleHint' => 'Empty uses the first lyric line, or Untitled and the date.',
 			'create.style' => 'Style',
 			'create.styleHint' => 'Genre, instruments, voice, language, tempo',
 			'create.stylePlaceholder' => 'English, warm piano pop, expressive female voice, acoustic piano, 88 BPM',
@@ -872,7 +903,8 @@ extension on Translations {
 			'create.planOff' => 'None',
 			'create.seed' => 'Seed',
 			'create.seedHint' => 'random',
-			'create.estimate' => ({required Object time}) => 'About ${time} on this Mac',
+			'create.estimate' => ({required Object time}) => '~ ${time}',
+			'create.estimateTip' => 'Estimated time on this Mac',
 			'create.generate' => 'Add to Queue',
 			'create.untitled' => 'Untitled',
 			'cover.title' => 'Cover',
@@ -902,7 +934,8 @@ extension on Translations {
 			'cover.lyricsPlaceholder' => '[Verse]\nWrite your lyrics here\n\n[Chorus]\n...',
 			'cover.seed' => 'Seed',
 			'cover.seedHint' => 'random',
-			'cover.estimate' => ({required Object time}) => 'About ${time} on this Mac',
+			'cover.estimate' => ({required Object time}) => '~ ${time}',
+			'cover.estimateTip' => 'Estimated time on this Mac',
 			'cover.generate' => 'Add to Queue',
 			'cover.queued' => 'Added to the queue',
 			'cover.needFile' => 'Choose a recording first.',
@@ -910,7 +943,8 @@ extension on Translations {
 			'cover.needStyle' => 'Describe the new style first.',
 			'cover.needLyrics' => 'Write the lyrics first.',
 			'cover.titleLabel' => 'Title',
-			'cover.titleHint' => 'Optional, defaults to the first lyric line',
+			'cover.optional' => '(Optional)',
+			'cover.titleHint' => 'Defaults to the first lyric line',
 			'cover.titlePlaceholder' => 'Untitled',
 			'cover.estimateIdle' => 'Choose a recording for an estimate',
 			'library.title' => 'Library',

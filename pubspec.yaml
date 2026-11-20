@@ -29,6 +29,7 @@ flutter:
   uses-material-design: true
   assets:
     - engine/sidecar.py
+    - engine/backends.py
     - engine/fetch.py
     - engine/sheetsage_wrap.py
     - engine/manifests/
