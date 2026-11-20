@@ -62,6 +62,18 @@ def low_memory():
     return memory_gb() < 32  # SheetSage2 peaks ~15 GB + YuE2 resident ~9.7 GB: 24 GB Macs would swap
 
 
+def mps_watermarks(mem_gb):
+    """SheetSage2 env that caps the Metal allocator pool. Without it, decoding a 210 s song grows past 30 GB, because MPS keeps
+    freed decode buffers. The ratios are relative to Metal's recommended working set (2/3 of RAM up to 36 GB, 3/4 above, as
+    torch.mps.recommended_max_memory() reports); the cap lands at 13-14 GB (real peak is ~11 GB), never above 1.0 of the set.
+    On 16 GB the set itself (10.7 GB) is the cap: close other apps (README). low = 0.7 x high. Unknown memory: no cap."""
+    if not math.isfinite(mem_gb):
+        return {}
+    working_set = mem_gb * (2 / 3 if mem_gb <= 36 else 3 / 4)
+    high = min(1.0, min(max(0.28 * mem_gb, 13.0), 14.0) / working_set)
+    return {"PYTORCH_MPS_HIGH_WATERMARK_RATIO": f"{high:.3f}", "PYTORCH_MPS_LOW_WATERMARK_RATIO": f"{0.7 * high:.3f}"}
+
+
 def nap(cancelled, seconds):
     if cancelled.wait(seconds):
         raise Cancelled()
@@ -206,6 +218,8 @@ class Yue2Backend(Backend):
             pass
 
     def generate(self, req, on_progress, cancelled):
+        # ponytail: no MPS watermark cap here, unmeasured on long songs and a wrong cap could break generation; if it grows
+        # unbounded too, set PYTORCH_MPS_HIGH/LOW_WATERMARK_RATIO from mps_watermarks() in __init__ before torch loads.
         out, seed = Path(req["out"]), req["seed"]
         if not str(req.get("style", "")).strip():
             raise ValueError("Style is required.")
@@ -257,7 +271,8 @@ class Yue2Backend(Backend):
                "--device", "mps" if sys.platform == "darwin" else "auto"]
         if req.get("mode") == "melody":
             cmd.append("--melody-only")
-        env = dict(os.environ, PYTHONUNBUFFERED="1")  # HF_HOME, HF_HUB_OFFLINE, MPS fallback set in __init__
+        # HF_HOME, HF_HUB_OFFLINE, MPS fallback set in __init__; the watermarks cap the Metal pool (see mps_watermarks)
+        env = dict(os.environ, PYTHONUNBUFFERED="1", **mps_watermarks(memory_gb()))
         started = time.monotonic()
         on_progress("transcribe", 0, None)
         with tempfile.TemporaryFile() as log:

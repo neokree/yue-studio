@@ -22,6 +22,8 @@ The interface is in English.
 
 macOS itself keeps out Intel Macs and macOS older than 14. The app checks the memory before it downloads anything. With less than 24 GB it shows a page that says so. From 16 GB up, the page has a **Try anyway** button that opens setup. The app remembers that choice and does not show the page again. Setup checks the free disk space.
 
+Cover transcription peaks at about 11 GB, so on a 16 GB Mac close other apps before transcribing.
+
 On Macs with less than 24 GB of memory, the app unloads the song model before a Cover transcription and loads it again afterwards.
 
 ## Install

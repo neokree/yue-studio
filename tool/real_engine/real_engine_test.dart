@@ -1,8 +1,11 @@
 // Real engine, headless, macOS only. Run through tool/real_engine.sh (it sets the env).
-// Real setup (engine/manifests/real.json, bundled uv) -> one real generation (reference/song.json, via ProcessEngine)
+// Real setup (engine/manifests/real.json, bundled uv) -> one real generation (tool/real_engine/long_song.json, ~3 min, via ProcessEngine)
 // -> a second generation (cot=melody, no score) -> one real Free transcription -> one cover generation from that ABC.
 // Ceilings: footprint of the largest engine process (sidecar or SheetSage2, every 2 s) <= 16 GB; generation wall <= 4 x audio seconds + 90 s. Downloads about 11 GB.
-// Env: REAL_ENGINE_DATA (data dir), REAL_ENGINE_LOG (log file).
+// Songs are ~3 min (tool/real_engine/long_song.json: 3 verses, 3 choruses, bridge). Also transcribes a long MP3 (the ~3 min generated song, else repeated to >= 205 s) at 44.1 kHz (.scratch/long-input, built by make_long_input.py) with the same memory ceiling and wall <= 120 s:
+// SheetSage2's Metal pool used to grow past 30 GB on songs of that length (the engine now caps it, see mps_watermarks in backends.py).
+// Env: REAL_ENGINE_DATA (data dir), REAL_ENGINE_LOG (log file), REAL_ENGINE_ONLY=transcribe (setup resume + the two transcriptions
+// of the song already in <data>/library/real-song, no generation).
 @Timeout(Duration(hours: 3))
 library;
 
@@ -78,6 +81,7 @@ Future<List<int>> childFootprintsKb() async {
 /// Hard ceilings, so a slow or heavy engine cannot pass silently (the old release wheel took 16+ min and 52 GB).
 const maxRssGb = 16.0;
 const wallPerAudioSecond = 4;
+const longTranscribeWall = Duration(seconds: 120);
 const loadAllowance = Duration(seconds: 90);
 final _violations = <String>[];
 
@@ -103,7 +107,7 @@ Future<JobRun> runJob(
   ProcessEngine engine,
   EngineRequest req,
   String job, {
-  Duration timeout = const Duration(minutes: 15),
+  Duration timeout = const Duration(minutes: 30),
 }) async {
   final done = Completer<ResultEvent>();
   var lastStage = '';
@@ -286,7 +290,9 @@ void main() {
     // 2. real generation, cot=full (it also loads the model: stage "load")
     final song =
         jsonDecode(
-              File(p.join(_root, 'reference', 'song.json')).readAsStringSync(),
+              File(
+                p.join(_root, 'tool', 'real_engine', 'long_song.json'),
+              ).readAsStringSync(),
             )
             as Map<String, dynamic>;
     GenerateRequest gen(String job, CotMode cot, {String? abc}) =>
@@ -300,33 +306,48 @@ void main() {
           abc: abc,
         );
     final runs = <String, JobRun>{};
-    runs['generate cot=full'] = await timed(
-      'generate (reference/song.json, cot=${song['cot']})',
-      () => runJob(
-        engine,
-        gen('real-song', CotMode.parse(song['cot'] as String?)),
-        'real-song',
-      ),
-    );
-    final g1 = runs['generate cot=full']!;
-    final audio = p.join(g1.result.dir, g1.result.audio ?? 'audio.flac');
-    expect(File(audio).existsSync(), isTrue, reason: 'no audio at $audio');
-    expect(File(audio).lengthSync(), greaterThan(10000));
-    say(
-      '   song: $audio (${g1.result.duration?.toStringAsFixed(1)} s audio, seed ${g1.result.seed})',
-    );
-    report('generate cot=full', g1);
+    final transcribeOnly =
+        Platform.environment['REAL_ENGINE_ONLY'] == 'transcribe';
+    late final String audio;
+    String? audio2, coverAudio;
+    if (transcribeOnly) {
+      audio = p.join(out, 'real-song', 'audio.flac');
+      expect(
+        File(audio).existsSync(),
+        isTrue,
+        reason: 'no song at $audio, run the full test once',
+      );
+    } else {
+      runs['generate cot=full'] = await timed(
+        'generate (long_song.json, cot=${song['cot']})',
+        () => runJob(
+          engine,
+          gen('real-song', CotMode.parse(song['cot'] as String?)),
+          'real-song',
+        ),
+      );
+      final g1 = runs['generate cot=full']!;
+      audio = p.join(g1.result.dir, g1.result.audio ?? 'audio.flac');
+      expect(File(audio).existsSync(), isTrue, reason: 'no audio at $audio');
+      expect(File(audio).lengthSync(), greaterThan(10000));
+      say(
+        '   song: $audio (${g1.result.duration?.toStringAsFixed(1)} s audio, seed ${g1.result.seed})',
+      );
+      report('generate cot=full', g1);
 
-    // 3. second generation, cot=melody and NO supplied score (the model plans the melody itself)
-    runs['generate cot=melody'] = await timed(
-      'generate (cot=melody, no score)',
-      () => runJob(engine, gen('real-melody', CotMode.melody), 'real-melody'),
-    );
-    final g2 = runs['generate cot=melody']!;
-    final audio2 = p.join(g2.result.dir, g2.result.audio ?? 'audio.flac');
-    expect(File(audio2).existsSync(), isTrue, reason: 'no audio at $audio2');
-    say('   song: $audio2 (${g2.result.duration?.toStringAsFixed(1)} s audio)');
-    report('generate cot=melody', g2);
+      // 3. second generation, cot=melody and NO supplied score (the model plans the melody itself)
+      runs['generate cot=melody'] = await timed(
+        'generate (cot=melody, no score)',
+        () => runJob(engine, gen('real-melody', CotMode.melody), 'real-melody'),
+      );
+      final g2 = runs['generate cot=melody']!;
+      audio2 = p.join(g2.result.dir, g2.result.audio ?? 'audio.flac');
+      expect(File(audio2).existsSync(), isTrue, reason: 'no audio at $audio2');
+      say(
+        '   song: $audio2 (${g2.result.duration?.toStringAsFixed(1)} s audio)',
+      );
+      report('generate cot=melody', g2);
+    }
 
     // 4. one real transcription, Free mode (melody only), of the first song
     runs['transcribe'] = await timed(
@@ -354,29 +375,67 @@ void main() {
     expect(abc, contains('X:'));
     say('   score: ${abcFile.path} (${abc.length} chars)');
 
-    // 5. one cover generation from that ABC
-    runs['cover (abc)'] = await timed(
-      'cover generate (abc from step 4, cot=melody)',
+    // 4b. the same transcription on a >= 200 s MP3 at 44.1 kHz: the memory and time ceilings must hold
+    // (rebuilt every run: a song of 150 s or more is used as it is, a shorter one is repeated up to >= 205 s)
+    final longIn = p.join(_root, '.scratch', 'long-input', 'long.mp3');
+    final made = await Process.run(
+      p.join(dataDir, 'venvs', 'sheetsage2', 'bin', 'python'),
+      [
+        p.join(_root, 'tool', 'real_engine', 'make_long_input.py'),
+        audio,
+        longIn,
+      ],
+    );
+    expect(made.exitCode, 0, reason: '${made.stderr}');
+    say('   long input: ${(made.stdout as String).trim()}');
+    runs['transcribe long (mp3, 44.1 kHz)'] = await timed(
+      'transcribe (Free, long mp3 at 44.1 kHz)',
       () => runJob(
         engine,
-        gen('real-cover', CotMode.melody, abc: abc),
-        'real-cover',
+        TranscribeRequest(
+          job: 'real-transcribe-long',
+          audio: longIn,
+          out: p.join(out, 'real-transcribe-long'),
+          mode: 'melody',
+        ),
+        'real-transcribe-long',
+        timeout: longTranscribeWall + const Duration(seconds: 60),
       ),
     );
-    final cover = runs['cover (abc)']!;
-    final coverAudio = p.join(
-      cover.result.dir,
-      cover.result.audio ?? 'audio.flac',
-    );
+    final trLong = runs['transcribe long (mp3, 44.1 kHz)']!;
+    report('transcribe long', trLong, generation: false);
+    if (trLong.wall > longTranscribeWall) {
+      _violations.add(
+        'transcribe long: wall ${trLong.wall.inSeconds} s > ${longTranscribeWall.inSeconds} s',
+      );
+    }
     expect(
-      File(coverAudio).existsSync(),
-      isTrue,
-      reason: 'no cover audio at $coverAudio',
+      File(p.join(trLong.result.dir, 'score.abc')).readAsStringSync(),
+      contains('X:'),
     );
-    say(
-      '   cover: $coverAudio (${cover.result.duration?.toStringAsFixed(1)} s audio)',
-    );
-    report('cover (abc)', cover);
+
+    // 5. one cover generation from that ABC
+    if (!transcribeOnly) {
+      runs['cover (abc)'] = await timed(
+        'cover generate (abc from step 4, cot=melody)',
+        () => runJob(
+          engine,
+          gen('real-cover', CotMode.melody, abc: abc),
+          'real-cover',
+        ),
+      );
+      final cover = runs['cover (abc)']!;
+      coverAudio = p.join(cover.result.dir, cover.result.audio ?? 'audio.flac');
+      expect(
+        File(coverAudio).existsSync(),
+        isTrue,
+        reason: 'no cover audio at $coverAudio',
+      );
+      say(
+        '   cover: $coverAudio (${cover.result.duration?.toStringAsFixed(1)} s audio)',
+      );
+      report('cover (abc)', cover);
+    }
 
     say('=== SUMMARY (data dir $dataDir)');
     for (final e in stepTimes.entries) {
@@ -391,9 +450,9 @@ void main() {
       );
     }
     say('  song:   $audio');
-    say('  melody: $audio2');
+    if (audio2 != null) say('  melody: $audio2');
     say('  score:  ${abcFile.path}');
-    say('  cover:  $coverAudio');
+    if (coverAudio != null) say('  cover:  $coverAudio');
     say(_violations.isEmpty ? '  CEILINGS: passed' : '  CEILINGS: FAILED');
     expect(_violations, isEmpty, reason: _violations.join('; '));
   }, timeout: Timeout.none);

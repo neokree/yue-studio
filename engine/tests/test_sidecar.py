@@ -378,3 +378,14 @@ def test_yue2_unload_drops_pipe(tmp_path):
     b.unload()
     assert b.pipe is None
     b.unload()  # idempotent
+
+
+def test_mps_watermarks():
+    # cap in GB = high x Metal working set (2/3 of RAM up to 36 GB, 3/4 above): 13-14 GB, 1.0 where the set is smaller
+    for gb, high, ws in [(16, 1.0, 10.67), (24, 0.8125, 16), (32, 0.61, 21.33), (48, 0.373, 36), (64, 0.292, 48)]:
+        env = backends.mps_watermarks(gb)
+        h, low = float(env["PYTORCH_MPS_HIGH_WATERMARK_RATIO"]), float(env["PYTORCH_MPS_LOW_WATERMARK_RATIO"])
+        assert h == pytest.approx(high, abs=0.002) and low == pytest.approx(0.7 * h, abs=0.002)
+        assert 0 < low < h <= 1.0
+        assert h * ws >= 10.6  # the real 11 GB peak fits (16 GB: the whole working set)
+    assert backends.mps_watermarks(float("inf")) == {}
