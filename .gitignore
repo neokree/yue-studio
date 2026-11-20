@@ -13,3 +13,4 @@ __pycache__/
 assets/uv/uv
 build/
 dist/
+.DS_Store

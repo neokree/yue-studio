@@ -6,6 +6,16 @@ The app is not affiliated with the YuE2 authors. Everything runs on your Mac. Th
 
 The interface is in English.
 
+<p align="center"><img src="docs/screenshots/generating.png" alt="A song being generated: a ring of bars around the logo fills clockwise as the engine works through Score, Melody, Sound and Master" width="900"></p>
+
+| Create | Library |
+|---|---|
+| <img src="docs/screenshots/create.png" alt="Create screen with title, style, lyrics, plan and Add to Queue" width="440"> | <img src="docs/screenshots/library.png" alt="Library with generated artwork, likes and a running job" width="440"> |
+| **Cover** | **First run** |
+| <img src="docs/screenshots/cover.png" alt="Cover screen with the transcribed score as staff notation, description and lyrics" width="440"> | <img src="docs/screenshots/setup.png" alt="First-run setup downloading the engine and models" width="440"> |
+
+Screens from the approved design ([design/proposal.html](design/proposal.html)), which the app follows.
+
 ## What it does
 
 - **Create**: write a style and lyrics, then generate a song.
