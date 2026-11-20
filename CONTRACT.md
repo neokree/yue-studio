@@ -110,7 +110,7 @@ Theme: all colours, radii, type sizes and motion durations live in `lib/theme/to
 
 ### 7c. Gauntlet loop, lightened
 
-- Reference to beat, judged blind per piece: `reference/noiz-*.png` for structure and completeness, `design/DESIGN.md` for look, Apple Music/Podcasts for native feel.
+- Reference to beat, judged blind per piece: the NOIZ web demo for structure and completeness, `design/DESIGN.md` for look, Apple Music/Podcasts for native feel.
 - **Maximum 3 critic rounds per milestone.** After round 3, ship what passes and list what does not; do not loop further.
 - The critic judges screenshots from the e2e run and the test output, in one batch per round.
 
@@ -136,7 +136,7 @@ If a milestone is 20 minutes late, apply the cut order in section 3 instead of c
 
 ## 9. Rules
 
-- Work only inside `/Users/fabiobiola/Developer/neokree/yue-studio` (your shell starts elsewhere: use absolute paths). Never modify `/Users/fabiobiola/Developer/AI-Tools/YuE`.
+- Work only inside the repository root (your shell starts elsewhere: use absolute paths). Never modify the local YuE checkout.
 - Nothing system-wide: no `brew install`, no global pip, no sudo. Flutter through `fvm` (3.44.3 is installed). Python through `uv`.
 - Git: commit freely on `main`. Creating the private GitHub repo and pushing is approved. **Creating or publishing a release is not**: prepare the dmg and a draft, then ask the user.
 - Do not use the user's `~/.cache/huggingface` to make a test pass; the fresh-install test must download for real.

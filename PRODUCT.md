@@ -22,7 +22,7 @@ Write a style and lyrics and get a full song; upload a recording and get a cover
 
 ## Positioning
 
-The local, private counterpart of hosted song generators. Structure borrowed from the NOIZ web demo (see `reference/noiz-*.png`); library behaviour borrowed from Suno (list of generations, like, rename).
+The local, private counterpart of hosted song generators. Structure borrowed from the NOIZ web demo (used as a structural reference); library behaviour borrowed from Suno (list of generations, like, rename).
 
 ## Operating Context
 
@@ -42,7 +42,7 @@ Each song takes 2-3 minutes to generate on an M-series Mac, so users wait often.
 
 ## Evidence on Hand
 
-`reference/noiz-text-to-song.png`, `reference/noiz-cover.png`, `reference/yue2-logo.webp`, measured timings in `reference/mps-profile.csv`.
+`reference/yue2-logo.webp`, measured timings in `reference/mps-profile.csv`.
 
 ## Product Principles
 

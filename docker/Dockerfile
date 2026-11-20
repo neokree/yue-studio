@@ -1,5 +1,5 @@
 # Test image for YuE2 Studio e2e (Linux arm64, headless via Xvfb). Built once, not per run:
-#   docker build -t yue2-studio-test:3.44.3 /Users/fabiobiola/Developer/neokree/yue-studio/docker
+#   docker build -t yue2-studio-test:3.44.3 docker   (run from the repo root)
 FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
