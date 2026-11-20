@@ -59,13 +59,14 @@ layer_e2e() {
     -e YUE2_STUDIO_ENGINE_DIR=/work/engine \
     -e YUE2_STUDIO_MANIFEST=/work/engine/manifests/fake.json \
     -e YUE2_STUDIO_FAKE=1 \
-    -e YUE2_FAKE_STEP_SECONDS=0.8 \
+    -e YUE2_FAKE_STEP_SECONDS=1.3 \
+    -e YUE2_STUDIO_TEST_FAIL_STEP=python-3.12 \
     -e YUE2_STUDIO_TEST_PICK_FILE=/tmp/e2e-pick.wav \
     -e E2E_SHOTS_DIR=/shots \
     -e E2E_SONG_JSON=/work/reference/song.json \
     "$IMAGE" bash -c '
       set -euo pipefail
-      rsync -a --delete --exclude=/build --exclude=/.dart_tool --exclude=/.git --exclude=/.fvm --exclude=/dist /src/ /work/
+      rsync -a --delete --exclude=/build --exclude=/.dart_tool --exclude=/.git --exclude=/.fvm --exclude=/.scratch --exclude=/dist /src/ /work/
       cd /work
       # 4 s silent 48 kHz stereo wav for the Cover step (no python in the image: perl ships with ubuntu)
       perl tool/make_pick_wav.pl > /tmp/e2e-pick.wav

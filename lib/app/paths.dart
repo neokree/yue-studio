@@ -11,6 +11,7 @@ class Paths {
     required this.engineDir,
     required this.manifest,
     this.copyAssets = true,
+    this.copyUv = true,
     this.fake = false,
   });
 
@@ -18,6 +19,9 @@ class Paths {
 
   /// False when YUE2_STUDIO_ENGINE_DIR is set: scripts are used in place.
   final bool copyAssets;
+
+  /// False when YUE2_STUDIO_UV is set: that uv is used as is, the bundled one is never copied.
+  final bool copyUv;
   final bool fake;
 
   factory Paths.resolve([Map<String, String>? env]) {
@@ -32,6 +36,7 @@ class Paths {
       engineDir: engine,
       manifest: env['YUE2_STUDIO_MANIFEST'] ?? p.join(engine, 'manifests', 'real.json'),
       copyAssets: engineOverride == null,
+      copyUv: env['YUE2_STUDIO_UV'] == null,
       fake: env['YUE2_STUDIO_FAKE'] == '1',
     );
   }
@@ -51,7 +56,7 @@ class Paths {
     for (final key in manifest.listAssets()) {
       if (copyAssets && key.startsWith('engine/')) {
         await _copy(bundle, key, p.join(engineDir, key.substring('engine/'.length)));
-      } else if (key == 'assets/uv/uv' && !File(uv).existsSync()) {
+      } else if (copyUv && key == 'assets/uv/uv' && !File(uv).existsSync()) {
         await _copy(bundle, key, uv);
         await Process.run('chmod', ['+x', uv]);
       }

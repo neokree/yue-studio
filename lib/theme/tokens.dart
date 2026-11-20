@@ -10,6 +10,7 @@ class AppColors {
     required this.text,
     required this.textSecondary,
     required this.textTertiary,
+    required this.placeholder,
     required this.divider,
     required this.accent,
     required this.accentPressed,
@@ -34,6 +35,9 @@ class AppColors {
   final Color textSecondary;
   final Color textTertiary;
 
+  /// Input placeholder: a touch darker than textTertiary in light so it keeps 4.5:1 on the field colour.
+  final Color placeholder;
+
   /// Hairlines (DESIGN "separator").
   final Color divider;
   final Color accent;
@@ -57,6 +61,7 @@ class AppColors {
     text: Color(0xFF1D1D1F),
     textSecondary: Color(0xFF5F5F64),
     textTertiary: Color(0xFF77777C),
+    placeholder: Color(0xFF6C6C71),
     divider: Color(0x17000000), // black 9%
     accent: Color(0xFFA4503A),
     accentPressed: Color(0xFF8C4230),
@@ -74,6 +79,7 @@ class AppColors {
     text: Color(0xFFF5F5F7),
     textSecondary: Color(0xFFB4B4BA),
     textTertiary: Color(0xFF98989E),
+    placeholder: Color(0xFF98989E),
     divider: Color(0x1AFFFFFF), // white 10%
     accent: Color(0xFFD97C62),
     accentPressed: Color(0xFFE8927A),

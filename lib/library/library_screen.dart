@@ -12,6 +12,7 @@ import '../player/player_controller.dart';
 import '../queue/job_queue.dart';
 import '../queue/stage_label.dart';
 import '../score/score_view.dart';
+import '../theme/segmented.dart';
 import '../theme/tokens.dart';
 import 'library_store.dart';
 import 'song.dart';
@@ -30,7 +31,9 @@ String formatDate(DateTime d, [DateTime? now]) {
 
 enum _Act { rename, reuse, export, score, delete, cancel }
 
-const _wCreated = 150.0, _wLength = 64.0, _wAction = 40.0, _wMore = 32.0;
+// Column proportions Title 45 / Created 22 / Length 12 (flex), fixed art, like and menu cells, 20 px gutter before Created.
+const _fTitle = 45, _fCreated = 22, _fLength = 12;
+const _wArt = 52.0, _wGutter = 20.0, _wAction = 40.0, _wMore = 32.0;
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({
@@ -200,7 +203,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 children: [
                   Text(t.library.title, style: theme.textTheme.titleLarge?.copyWith(fontSize: 22)),
                   const Spacer(),
-                  _Segmented(liked: lib.likedOnly, onChanged: lib.setLikedOnly),
+                  Segmented<String>(
+                    key: const ValueKey('library.filter'),
+                    segments: [('all', t.library.filter.all), ('liked', t.library.filter.liked)],
+                    selected: lib.likedOnly ? 'liked' : 'all',
+                    onChanged: (v) => lib.setLikedOnly(v == 'liked'),
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -243,56 +251,19 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 }
 
-class _Segmented extends StatelessWidget {
-  const _Segmented({required this.liked, required this.onChanged});
-  final bool liked;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    Widget seg(Key key, String label, bool on, bool value) => GestureDetector(
-          key: key,
-          behavior: HitTestBehavior.opaque,
-          onTap: () => onChanged(value),
-          child: AnimatedContainer(
-            duration: Motion.fast,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-            decoration: BoxDecoration(
-              color: on ? theme.scaffoldBackgroundColor : Colors.transparent,
-              borderRadius: BorderRadius.circular(5),
-              boxShadow: on ? const [BoxShadow(color: Color(0x29000000), blurRadius: 2, offset: Offset(0, 1))] : null,
-            ),
-            child: Text(label, style: TextStyle(fontSize: 13, fontWeight: on ? FontWeight.w600 : FontWeight.w400)),
-          ),
-        );
-    return Container(
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        color: theme.inputDecorationTheme.fillColor,
-        borderRadius: BorderRadius.circular(7),
-        border: Border.all(color: theme.dividerColor),
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        seg(const Key('library.filter.all'), t.library.filter.all, !liked, false),
-        seg(const Key('library.filter.liked'), t.library.filter.liked, liked, true),
-      ]),
-    );
-  }
-}
-
 class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final style = TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.of(context).textSecondary);
+    final style = TextStyle(fontSize: TypeSize.label, fontWeight: FontWeight.w600, color: AppColors.of(context).textSecondary);
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor))),
       child: Row(children: [
-        const SizedBox(width: 52),
-        Expanded(child: Text(t.library.col.title, style: style)),
-        SizedBox(width: _wCreated, child: Text(t.library.col.created, style: style)),
-        SizedBox(width: _wLength, child: Text(t.library.col.length, maxLines: 1, softWrap: false, style: style)),
+        const SizedBox(width: _wArt),
+        Expanded(flex: _fTitle, child: Text(t.library.col.title, style: style)),
+        const SizedBox(width: _wGutter),
+        Expanded(flex: _fCreated, child: Text(t.library.col.created, style: style)),
+        Expanded(flex: _fLength, child: Padding(padding: const EdgeInsets.only(right: 8), child: Text(t.library.col.length, maxLines: 1, softWrap: false, textAlign: TextAlign.right, style: style))),
         const SizedBox(width: _wAction + _wMore),
       ]),
     );
@@ -372,7 +343,7 @@ class _SongRowState extends State<_SongRow> {
     final done = s.status == SongStatus.done;
     final sub = failed && s.error != null
         ? s.error!
-        : [if (s.kind == SongKind.cover) t.library.cover, if (s.request.style.isNotEmpty) s.request.style].join(' · ');
+        : [if (s.kind == SongKind.cover) t.library.cover, shortStyle(s.request.style)].where((e) => e.isNotEmpty).join(' · ');
     final tab = const [FontFeature.tabularFigures()];
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
@@ -418,6 +389,7 @@ class _SongRowState extends State<_SongRow> {
               ),
               const SizedBox(width: 12),
               Expanded(
+                flex: _fTitle,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -431,26 +403,35 @@ class _SongRowState extends State<_SongRow> {
                         child: Text(s.title, key: const Key('library.title'), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                       ),
                     if (sub.isNotEmpty)
-                      Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: failed ? err : c.textSecondary)),
+                      Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: TypeSize.caption, color: failed ? err : c.textSecondary)),
                   ],
                 ),
               ),
-              SizedBox(
-                width: _wCreated,
+              const SizedBox(width: _wGutter),
+              Expanded(
+                flex: _fCreated,
                 child: live
-                    ? Text(widget.status, key: const Key('library.status'), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.accent))
+                    // Running and queued: status in accent instead of a date.
+                    ? Text(widget.status, key: const Key('library.status'), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: TypeSize.body, fontWeight: FontWeight.w600, color: c.accent))
                     : Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(formatDate(s.createdAt), style: TextStyle(fontSize: 13, color: c.textSecondary, fontFeatures: tab)),
-                          Text(widget.status, key: const Key('library.status'), style: TextStyle(fontSize: 11, color: failed ? err : c.textSecondary)),
+                          Stack(children: [
+                            Text(formatDate(s.createdAt), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: TypeSize.body, color: c.textSecondary, fontFeatures: tab)),
+                            // ponytail: a finished row prints no status; this invisible label keeps Key('library.status') (e2e + screen readers).
+                            if (done) Positioned(left: 0, top: 0, child: IgnorePointer(child: Opacity(opacity: 0, child: Text(widget.status, key: const Key('library.status'))))),
+                          ]),
+                          if (failed) Text(widget.status, key: const Key('library.status'), style: TextStyle(fontSize: TypeSize.caption, color: err)),
                         ],
                       ),
               ),
-              SizedBox(
-                width: _wLength,
-                child: Text(s.duration == null ? '' : formatClock(Duration(milliseconds: (s.duration! * 1000).round())), style: TextStyle(fontSize: 13, color: c.textSecondary, fontFeatures: tab)),
+              Expanded(
+                flex: _fLength,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Text(s.duration == null ? '' : formatClock(Duration(milliseconds: (s.duration! * 1000).round())), maxLines: 1, textAlign: TextAlign.right, style: TextStyle(fontSize: TypeSize.body, color: c.textSecondary, fontFeatures: tab)),
+                ),
               ),
               SizedBox(
                 width: _wAction,

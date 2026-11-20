@@ -98,6 +98,10 @@ class GenerationEstimator {
   /// True once the model has been loaded in this app session: the next job skips the load step.
   bool modelLoaded = false;
 
+  /// True when the engine runs in fake mode (ready.fake, or YUE2_STUDIO_FAKE=1): its timings say nothing about the
+  /// machine, so [record] ignores them and a test run never pollutes the user's calibration.
+  bool fake = Platform.environment['YUE2_STUDIO_FAKE'] == '1';
+
   File get _file => File(p.join(dataDir, 'estimator.json'));
 
   Future<void> load() async {
@@ -193,6 +197,21 @@ class GenerationEstimator {
     }
   }
 
+  /// 0..1 progress inside [stage] alone (what the status line shows as a percentage); stays below 1 for token stages.
+  double stageFractionFor({
+    required String stage,
+    required int done,
+    int? total,
+    Duration elapsedInStage = Duration.zero,
+    required String lyrics,
+    double? sourceSeconds,
+    bool plan = true,
+  }) {
+    final audio = expectedSeconds(lyrics: lyrics, sourceSeconds: sourceSeconds);
+    final sec = _steps(audio, plan: plan, cover: sourceSeconds != null, current: stage).where((e) => e.$1 == stage);
+    return _fraction(stage, done, total, elapsedInStage, audio, sec.isEmpty ? 1 : sec.first.$2);
+  }
+
   /// 0..1 overall progress, stages weighted by their share of time. Not monotonic by itself: the queue keeps the max.
   double progressFor({
     required String stage,
@@ -258,7 +277,7 @@ class GenerationEstimator {
     required double audioSeconds,
     Map<String, int>? tokens,
   }) async {
-    if (audioSeconds <= 0) return;
+    if (fake || audioSeconds <= 0) return;
     final a = runs == 0 ? 1.0 : math.max(0.3, 1 / (runs + 1));
     double mix(double old, double obs) => old + (obs - old) * a;
     for (final e in stageSeconds.entries) {

@@ -109,6 +109,26 @@ void main() {
     expect(rem('vae', 4, 4, 5).inSeconds, 0);
   });
 
+  test('fake engine runs never calibrate; estimate is deterministic', () async {
+    final e = ref();
+    await e.load();
+    final before = e.estimate(lyrics: songLyrics);
+    expect(e.estimate(lyrics: songLyrics), before);
+    e.fake = true;
+    await e.record(stageSeconds: {'load': 1, 'abc': 1, 'semantic': 1, 'nar': 1, 'vae': 1}, audioSeconds: 70);
+    expect(e.runs, 0);
+    expect(e.modelLoaded, isFalse);
+    expect(e.estimate(lyrics: songLyrics), before);
+    expect(GenerationEstimator(tmp.path, probe: () async => Hardware.reference).runs, 0);
+  });
+
+  test('stage fraction is the share of the current stage', () async {
+    final e = ref();
+    await e.load();
+    expect(e.stageFractionFor(stage: 'semantic', done: 1750, lyrics: songLyrics), closeTo(0.5, 1e-9)); // 50 tok/s * 70 s
+    expect(e.stageFractionFor(stage: 'nar', done: 8, total: 32, lyrics: songLyrics), 0.25);
+  });
+
   test('record: first run replaces the prior, later runs average, state survives a restart', () async {
     final e = ref();
     await e.load();

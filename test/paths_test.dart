@@ -14,6 +14,19 @@ void main() {
     expect((o.dataDir, o.uv, o.engineDir, o.manifest, o.copyAssets, o.fake), ('/d', '/u', '/e', '/e/manifests/real.json', false, true));
   });
 
+  test('YUE2_STUDIO_UV set: the bundled uv is never copied', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    final tmp = Directory.systemTemp.createTempSync('yue2uv');
+    addTearDown(() => tmp.deleteSync(recursive: true));
+    final uv = '${tmp.path}/elsewhere/uv';
+    expect(Paths.resolve({'YUE2_STUDIO_DATA_DIR': tmp.path}).copyUv, true);
+    final p = Paths.resolve({'YUE2_STUDIO_DATA_DIR': tmp.path, 'YUE2_STUDIO_UV': uv});
+    expect(p.copyUv, false);
+    await p.prepare();
+    expect(File(uv).existsSync(), false);
+    expect(File('${tmp.path}/bin/uv').existsSync(), false);
+  });
+
   test('prepare copies the bundled engine scripts', () async {
     TestWidgetsFlutterBinding.ensureInitialized();
     final tmp = Directory.systemTemp.createTempSync('yue2paths');

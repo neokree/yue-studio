@@ -8,10 +8,13 @@ skipped by huggingface_hub, partial ones continue from their .incomplete file.
 """
 import argparse
 import json
+import os
 import sys
 import threading
 import time
 from pathlib import Path
+
+os.environ["HF_HUB_DISABLE_XET"] = "1"  # before huggingface_hub: xet writes in bursts, plain HTTP grows <file>.incomplete
 
 from huggingface_hub import HfApi, constants, hf_hub_download
 

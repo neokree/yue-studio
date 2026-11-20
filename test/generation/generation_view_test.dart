@@ -3,14 +3,18 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yue2_studio/engine/protocol.dart';
+import 'package:yue2_studio/generation/estimator.dart';
 import 'package:yue2_studio/generation/generation_view.dart';
 import 'package:yue2_studio/library/library_store.dart';
+import 'package:yue2_studio/generation/waveform_painter.dart';
 import 'package:yue2_studio/library/song.dart';
 import 'package:yue2_studio/queue/job_queue.dart';
 
 class FakeQueue extends ChangeNotifier implements JobQueue {
   Song? song;
   String? cancelled;
+  @override
+  final estimator = GenerationEstimator('/nonexistent');
   @override
   String? stage;
   @override
@@ -73,8 +77,8 @@ void main() {
     expect(find.text('City Lights'), findsOneWidget);
 
     for (final (stage, done, total, p, text) in [
-      ('abc', 340, null, 0.15, 'Planning score, 340 tokens'),
-      ('semantic', 1200, null, 0.3, 'Composing melody, 1200 tokens'),
+      ('abc', 37, null, 0.15, 'Planning score, 50%'), // 'l' is 15 s of audio: 74 abc tokens expected
+      ('semantic', 375, null, 0.3, 'Composing melody, 50%'),
       ('nar', 15, 32, 0.7, 'Rendering sound, step 15 of 32'),
       ('vae', 1, 4, 0.97, 'Mastering, step 1 of 4'),
     ]) {
@@ -88,8 +92,7 @@ void main() {
       for (var i = 0; i < 10; i++) {
         await tester.pump(const Duration(milliseconds: 16));
       }
-      expect(find.text(text), findsOneWidget);
-      expect(find.text('About 1 min 10 s left'), findsOneWidget);
+      expect(find.text('$text · about 1 min 10 s left'), findsOneWidget);
     }
 
     await tester.tap(find.byKey(const Key('generation.cancel')));
@@ -108,6 +111,26 @@ void main() {
       await tester.pump(const Duration(milliseconds: 16));
     }
     expect(tester.binding.transientCallbackCount, 0, reason: 'ring settled: the ticker has stopped');
+  });
+
+  testWidgets('ring is 280-320 px at a 1280x720 window, 32 px above the title; done stages carry a check', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1280, 720);
+    addTearDown(tester.view.reset);
+    q.song = lib.byId(song.id);
+    q.stage = 'nar';
+    q.stageDone = 3;
+    q.stageTotal = 32;
+    q.remaining = const Duration(seconds: 3);
+    // sidebar 216 + padding 28*2, header/player bar roughly 72 + 22*2 vertical
+    await tester.pumpWidget(app(Padding(padding: const EdgeInsets.fromLTRB(0, 22, 0, 94), child: GenerationView(queue: q, library: lib))));
+    await tester.pump(const Duration(milliseconds: 16));
+    final ring = tester.getRect(find.byWidgetPredicate((w) => w is CustomPaint && w.painter is WaveformPainter));
+    expect(ring.width, inInclusiveRange(280, 320));
+    expect(tester.getTopLeft(find.text('City Lights')).dy - ring.bottom, closeTo(32, 6));
+    expect(find.byIcon(Icons.check_rounded), findsNWidgets(2), reason: 'Score and Melody are done');
+    expect(find.text('Rendering sound, step 3 of 32 · a few seconds left'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets('a job that starts while the previous one wraps up is followed, not handed off', (tester) async {

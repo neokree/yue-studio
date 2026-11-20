@@ -1,11 +1,15 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yue2_studio/cover/cover_screen.dart';
 import 'package:yue2_studio/library/song.dart';
 import 'package:yue2_studio/queue/job_queue.dart';
+import 'package:yue2_studio/theme/theme.dart';
 
 const _abc = 'X:1\nK:C\n"Am"A2 c2 | "F"A2 f2 |]\n';
 
@@ -33,7 +37,7 @@ class _FakeQueue extends Fake implements JobQueue {
     SongKind kind = SongKind.song,
     double? sourceSeconds,
   }) {
-    enqueued.add({'style': style, 'lyrics': lyrics, 'cot': cot, 'abc': abc, 'kind': kind, 'sourceSeconds': sourceSeconds, 'seed': seed});
+    enqueued.add({'style': style, 'lyrics': lyrics, 'cot': cot, 'abc': abc, 'kind': kind, 'sourceSeconds': sourceSeconds, 'seed': seed, 'title': title});
     return 'id1';
   }
 }
@@ -75,7 +79,11 @@ void main() {
         ),
       ),
     ));
-    expect(find.text('About 1 min 40 s on this Mac'), findsOneWidget);
+    expect(find.text('Choose a recording for an estimate'), findsOneWidget); // no "a few seconds" without a source
+    expect(find.byKey(const Key('score.view.notation')), findsOneWidget); // segmented visible on every platform
+    expect(find.byKey(const Key('score.view.text')), findsOneWidget);
+    expect(find.byKey(const Key('cover.title')), findsOneWidget);
+    expect(find.byKey(const Key('cover.transcribe')), findsNothing);
 
     // missing file
     await t.tap(find.byKey(const Key('cover.generate')));
@@ -90,6 +98,7 @@ void main() {
     }
     expect(find.text('take.wav'), findsOneWidget);
     expect(t.widget<Text>(find.byKey(const Key('cover.filemeta'))).data, contains('0:02'));
+    expect(find.text('About 1 min 40 s on this Mac'), findsOneWidget);
 
     // missing score
     await t.tap(find.byKey(const Key('cover.generate')));
@@ -125,6 +134,7 @@ void main() {
     await t.enterText(find.byKey(const Key('cover.style')), 'acoustic folk');
     await t.enterText(find.byKey(const Key('cover.lyrics')), '[Verse]\nHello');
     await t.enterText(find.byKey(const Key('cover.seed')), '42');
+    await t.enterText(find.byKey(const Key('cover.title')), 'My cover');
     await t.tap(find.byKey(const Key('cover.generate')));
     await t.pump();
     final call = q.enqueued.single;
@@ -133,7 +143,51 @@ void main() {
     expect(call['abc'], _abc.trim());
     expect(call['style'], 'acoustic folk');
     expect(call['seed'], 42);
+    expect(call['title'], 'My cover');
     expect(call['sourceSeconds'], closeTo(2, 0.01));
     expect(find.byKey(const Key('cover.queued')), findsOneWidget);
   });
+
+  for (final b in Brightness.values) {
+    testWidgets('renders without overflow and saves a capture in ${b.name}', (t) async {
+      t.view.physicalSize = const Size(1000, 680);
+      t.view.devicePixelRatio = 1;
+      t.platformDispatcher.platformBrightnessTestValue = b;
+      addTearDown(t.view.reset);
+      addTearDown(t.platformDispatcher.clearPlatformBrightnessTestValue);
+      final tmp = Directory.systemTemp.createTempSync('yue2cover');
+      addTearDown(() => tmp.deleteSync(recursive: true));
+      final wav = _wav(tmp);
+      final shot = GlobalKey();
+      await t.pumpWidget(RepaintBoundary(
+        key: shot,
+        child: MaterialApp(
+          theme: buildTheme(b),
+          home: Scaffold(
+            body: CoverScreen(
+              queue: _FakeQueue(),
+              estimate: ({required String lyrics, double? sourceSeconds}) => const Duration(seconds: 160),
+              picker: () async => wav.path,
+            ),
+          ),
+        ),
+      ));
+      await t.tap(find.byKey(const Key('cover.pick')));
+      for (var i = 0; i < 20 && !t.widget<Text>(find.byKey(const Key('cover.filemeta'))).data!.contains(':'); i++) {
+        await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+        await t.pump();
+      }
+      await t.tap(find.byKey(const Key('score.view.notation'))); // no WebView here: shows the one-line fallback note
+      await t.pump();
+      expect(find.text('About 2 min 40 s on this Mac'), findsOneWidget);
+      expect(find.text('Notation preview is not available here, showing the text.'), findsOneWidget);
+      await t.runAsync(() async {
+        final img = await (shot.currentContext!.findRenderObject() as RenderRepaintBoundary).toImage();
+        final png = await img.toByteData(format: ui.ImageByteFormat.png);
+        File('build/cover-shots/cover-${b.name}.png')
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(png!.buffer.asUint8List());
+      });
+    });
+  }
 }

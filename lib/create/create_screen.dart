@@ -62,7 +62,9 @@ class _Form extends StatelessWidget {
   CreateDraft get d => services.createDraft;
 
   void _add() {
+    final title = d.title.text.trim();
     final id = services.queue.enqueueGenerate(
+      title: title.isEmpty ? null : title,
       style: d.style.text,
       lyrics: d.lyrics.text,
       cot: d.cot.name,
@@ -82,13 +84,19 @@ class _Form extends StatelessWidget {
         children: [
           Text(t.create.title, style: theme.textTheme.titleLarge),
           const SizedBox(height: Space.md),
+          _FieldLabel(t.create.titleLabel, t.create.titleHint),
+          TextField(key: const Key('create.title'), controller: d.title),
+          const SizedBox(height: Space.md),
           _FieldLabel(t.create.style, t.create.styleHint),
           TextField(
             key: const Key('create.style'),
             controller: d.style,
             minLines: 2,
-            maxLines: 3,
-            decoration: InputDecoration(hintText: t.create.stylePlaceholder),
+            maxLines: 4,
+            decoration: InputDecoration(
+              hintText: t.create.stylePlaceholder,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            ),
           ),
           const SizedBox(height: Space.md),
           _FieldLabel(t.create.lyrics, t.create.lyricsHint),
@@ -100,15 +108,19 @@ class _Form extends StatelessWidget {
               minLines: null,
               maxLines: null,
               textAlignVertical: TextAlignVertical.top,
-              decoration: InputDecoration(hintText: t.create.lyricsPlaceholder),
+              decoration: InputDecoration(
+                hintText: t.create.lyricsPlaceholder,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
             ),
           ),
           const SizedBox(height: Space.md),
           ListenableBuilder(
-            listenable: Listenable.merge([d, d.style, d.lyrics]),
+            listenable: Listenable.merge([d, d.style, d.lyrics]), // d.title does not move the estimate
             builder: (context, _) {
               final estimate = services.estimator.estimate(lyrics: d.lyrics.text, plan: d.cot != CotMode.off);
-              final ready = d.style.text.trim().isNotEmpty && d.lyrics.text.trim().isNotEmpty;
+              // Empty lyrics are an instrumental (the Lyrics hint says so), so only the style is required.
+              final ready = d.style.text.trim().isNotEmpty;
               return Row(
                 children: [
                   Text(t.create.plan, style: theme.textTheme.labelLarge),
@@ -137,6 +149,7 @@ class _Form extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 14),
+                  // Right-aligned and hugging the button (12 px), as in the mock.
                   Expanded(
                     child: Text(
                       t.create.estimate(time: formatEta(estimate)),
@@ -147,7 +160,7 @@ class _Form extends StatelessWidget {
                       style: theme.textTheme.bodyMedium?.copyWith(color: c.textTertiary),
                     ),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 12),
                   FilledButton(
                     key: const Key('create.generate'),
                     onPressed: ready ? _add : null,

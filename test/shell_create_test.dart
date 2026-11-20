@@ -81,6 +81,30 @@ void main() {
     expect(find.text('Nothing in the queue'), findsOneWidget);
   });
 
+  testWidgets('Title field names the song; empty falls back to the first lyric line without its tag, then to Untitled', (t) async {
+    await boot(t);
+    expect(find.byKey(const Key('create.title')), findsOneWidget);
+    await t.enterText(find.byKey(const Key('create.title')), '  City Lights ');
+    await t.enterText(find.byKey(const Key('create.style')), 'pop');
+    await t.enterText(find.byKey(const Key('create.lyrics')), '[Verse] Neon fades');
+    await t.pump();
+    await t.tap(find.byKey(const Key('create.generate')));
+    await t.pump();
+    expect(s.library.songs.single.title, 'City Lights');
+
+    s.queue.enqueueGenerate(style: 'pop', lyrics: '[Verse] Neon fades\nline two', cot: 'full');
+    s.queue.enqueueGenerate(style: 'ambient', lyrics: '', cot: 'off');
+    final titles = s.library.songs.map((x) => x.title).toList();
+    expect(titles, contains('Neon fades'));
+    expect(titles.where((x) => x.startsWith('Untitled ')), hasLength(1));
+    for (var i = 1; i <= 3; i++) {
+      await t.pump(const Duration(milliseconds: 500));
+      final job = engine.sent.whereType<GenerateRequest>().elementAt(i - 1);
+      engine.emit(ResultEvent(job: job.job, dir: job.out, audio: 'audio.wav', seed: 1, duration: 2));
+    }
+    await t.pump(const Duration(seconds: 5));
+  });
+
   testWidgets('sidebar: Liked is Library filtered, prefill switches to Create', (t) async {
     await boot(t);
     await t.tap(find.byKey(const Key('nav.liked')));

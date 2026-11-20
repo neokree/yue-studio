@@ -17,6 +17,11 @@ import 'waveform_painter.dart';
 const _ease = Cubic(.16, 1, .3, 1);
 const _stages = ['abc', 'semantic', 'nar', 'vae'];
 
+double _contrast(Color a, Color b) {
+  final x = a.computeLuminance(), y = b.computeLuminance();
+  return (math.max(x, y) + 0.05) / (math.min(x, y) + 0.05);
+}
+
 /// The whole content area while a job runs (design/DESIGN.md, "Generating").
 /// Follows [JobQueue.running]; when a job ends it settles the ring, shows the artwork, then calls [onFinished]
 /// (the shell switches to the Library). A job that starts meanwhile is followed instead.
@@ -126,13 +131,27 @@ class _GenerationViewState extends State<GenerationView> with SingleTickerProvid
 
   int get _stageIndex => _finished && _success ? _stages.length : _stages.indexOf(_q.stage ?? '');
 
-  String _status() {
+  /// Whole percent of the current token stage against the estimate; never 100 until the stage is over.
+  int _pct(String stage) {
+    final f = _q.estimator.stageFractionFor(
+        stage: stage, done: _q.stageDone, total: _q.stageTotal, lyrics: _song?.request.lyrics ?? '');
+    return (f * 100).floor().clamp(0, 99);
+  }
+
+  /// The one status line: `Rendering sound, step 15 of 32` or `Composing melody, 38%`, then `· about 2 min left`.
+  String _status(Duration? remaining) {
     if (_finished) return _success ? t.generation.done : '';
+    final s = _stageText();
+    if (remaining == null) return s;
+    return remaining.inSeconds < 5 ? t.generation.timeLeftFew(status: s) : t.generation.timeLeft(status: s, time: formatDuration(remaining));
+  }
+
+  String _stageText() {
     final done = _q.stageDone, total = _q.stageTotal;
     return switch (_q.stage) {
       'load' => t.generation.loading,
-      'abc' => t.generation.planning(n: done),
-      'semantic' => t.generation.composing(n: done),
+      'abc' => t.generation.planning(pct: _pct('abc')),
+      'semantic' => t.generation.composing(pct: _pct('semantic')),
       'nar' when total != null => t.generation.rendering(done: done, total: total),
       'vae' when total != null && total > 0 => t.generation.mastering(done: done, total: total),
       'vae' => t.generation.masteringNoStep,
@@ -150,12 +169,15 @@ class _GenerationViewState extends State<GenerationView> with SingleTickerProvid
     final labels = [t.generation.stageScore, t.generation.stageMelody, t.generation.stageSound, t.generation.stageMaster];
     final cur = _stageIndex;
     const tab = [FontFeature.tabularFigures()];
+    // Tertiary is 4.45:1 on the light window (DESIGN token), just under 4.5: fall back to secondary there.
+    final upcoming = _contrast(c.textTertiary, c.background) >= 4.5 ? c.textTertiary : c.textSecondary;
     final remaining = _finished ? null : _q.remaining;
     final song = _song;
     return Center(
       key: const Key('generation.view'),
       child: LayoutBuilder(builder: (context, box) {
-        final side = math.max(120.0, math.min(340.0, box.maxHeight - 190));
+        // 280-320 px at a 1280x720 window; below that the ring gives way to the text under it.
+        final side = box.maxHeight.isFinite ? (box.maxHeight - 200).clamp(120.0, 320.0) : 320.0;
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -189,35 +211,36 @@ class _GenerationViewState extends State<GenerationView> with SingleTickerProvid
                 ],
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 32),
             Text(song?.title ?? '', style: theme.textTheme.titleMedium?.copyWith(fontSize: 20, fontWeight: FontWeight.w600)),
             const SizedBox(height: 18),
+            // done: secondary + check; current: bold; upcoming: tertiary (secondary where tertiary is under 4.5:1).
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 for (var i = 0; i < labels.length; i++) ...[
                   if (i > 0) const SizedBox(width: 22),
-                  Text(
-                    labels[i],
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: i == cur ? FontWeight.w700 : FontWeight.w400,
-                      color: i == cur ? c.text : (i < cur ? c.textSecondary : c.textTertiary),
-                    ),
+                  Semantics(
+                    label: i < cur ? t.generation.stageDoneLabel(stage: labels[i]) : labels[i],
+                    excludeSemantics: true,
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      SizedBox(width: 15, child: i < cur ? Icon(Icons.check_rounded, size: 12, color: c.textSecondary) : null),
+                      Text(
+                        labels[i],
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: i == cur ? FontWeight.w700 : FontWeight.w400,
+                          color: i == cur ? c.text : (i < cur ? c.textSecondary : upcoming),
+                        ),
+                      ),
+                    ]),
                   ),
                 ],
               ],
             ),
             const SizedBox(height: 14),
-            Text(_status(), style: TextStyle(fontSize: 13, color: c.textSecondary, fontFeatures: tab)),
-            SizedBox(
-              height: 20,
-              child: remaining == null
-                  ? null
-                  : Text(t.generation.timeLeft(time: formatDuration(remaining)),
-                      style: TextStyle(fontSize: 12, color: c.textTertiary, fontFeatures: tab)),
-            ),
-            const SizedBox(height: 12),
+            Text(_status(remaining), style: TextStyle(fontSize: 13, color: c.textSecondary, fontFeatures: tab)),
+            const SizedBox(height: 16),
             OutlinedButton(
               key: const Key('generation.cancel'),
               onPressed: _finished ? null : () => _q.cancel(_shown!),

@@ -58,7 +58,7 @@ class LibraryStore extends ChangeNotifier {
   Song? byId(String id) => songs.where((s) => s.id == id).firstOrNull;
 
   Song create({
-    required String title,
+    String? title,
     required SongRequest request,
     SongKind kind = SongKind.song,
     DateTime? now,
@@ -66,17 +66,45 @@ class LibraryStore extends ChangeNotifier {
     final id = '${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}${Random().nextInt(1 << 16).toRadixString(36)}';
     final s = Song(
       id: id,
-      title: title,
+      title: _titleOrDefault(title, request.lyrics, now ?? DateTime.now()),
       createdAt: now ?? DateTime.now(),
       status: SongStatus.queued,
       kind: kind,
       request: request,
-      artwork: ArtworkSpec(seed: Random().nextInt(1 << 31)),
+      artwork: ArtworkSpec(seed: _freshSeed()),
     );
     _write(s);
     songs = [s, ...songs]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     notifyListeners();
     return s;
+  }
+
+  /// Blank title: first lyric line (section tags skipped), else "Untitled 2026-11-20" (instrumentals).
+  static String _titleOrDefault(String? title, String lyrics, DateTime at) {
+    final t = title?.trim() ?? '';
+    if (t.isNotEmpty) return t;
+    final line = lyrics.split('\n').map((l) => l.trim()).firstWhere((l) => l.isNotEmpty && !l.startsWith('['), orElse: () => '');
+    if (line.isNotEmpty) return line.length > 60 ? line.substring(0, 60) : line;
+    final d = at.toLocal();
+    return 'Untitled ${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  }
+
+  /// Random seed whose motif and hue differ from the three newest songs, so neighbouring rows never look alike.
+  /// Only picks the seed for a NEW song; stored artworks are never touched.
+  int _freshSeed() {
+    final rnd = Random();
+    final recent = [for (final s in songs.take(3)) ArtworkParams.forSpec(s.art)];
+    // ponytail: 4 motifs can't always differ from 3 neighbours plus hue; after 100 misses only the newest row counts.
+    var tries = 0;
+    bool distinct(ArtworkParams p) => (tries < 100 ? recent : recent.take(1)).every((r) {
+          final d = (r.hue - p.hue).abs() % 360;
+          return r.motif != p.motif && (d > 180 ? 360 - d : d) > 50;
+        });
+    var seed = rnd.nextInt(1 << 31);
+    for (; tries < 400 && !distinct(ArtworkParams.v1(seed)); tries++) {
+      seed = rnd.nextInt(1 << 31);
+    }
+    return seed;
   }
 
   void update(Song s) {

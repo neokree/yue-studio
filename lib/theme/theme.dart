@@ -53,7 +53,7 @@ ThemeData buildTheme(Brightness b) {
       fillColor: c.field,
       isDense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      hintStyle: TextStyle(color: c.textTertiary),
+      hintStyle: TextStyle(color: c.placeholder),
       border: border(c.divider, 1),
       enabledBorder: border(c.divider, 1),
       focusedBorder: border(c.accent, 1.5),

@@ -30,12 +30,19 @@ final _ansi = RegExp(r'\x1B\[[0-9;?]*[A-Za-z]');
 /// Executes steps as described in engine/PROTOCOL.md section 5, with the data-dir environment
 /// (HF_HOME, UV_CACHE_DIR, UV_PYTHON_INSTALL_DIR, no HF_TOKEN).
 class ProcessStepRunner implements StepRunner {
-  ProcessStepRunner(this.paths);
+  ProcessStepRunner(this.paths, {String? failStep}) : _failStep = failStep ?? Platform.environment['YUE2_STUDIO_TEST_FAIL_STEP'];
   final Paths paths;
+
+  /// Test hook (YUE2_STUDIO_TEST_FAIL_STEP=`step id`): that step fails once, for the e2e error screenshot.
+  String? _failStep;
 
   @override
   Future<void> run(SetupStep step, StepReport report) async {
     final raw = step.raw;
+    if (_failStep == step.id) {
+      _failStep = null;
+      throw SetupException('Network connection lost (simulated by YUE2_STUDIO_TEST_FAIL_STEP).');
+    }
     // Hermetic: no user uv config, and no python launcher links outside the data dir (uv defaults to ~/.local/bin).
     final env = {...ProcessEngine.environmentFor(paths), 'UV_NO_CONFIG': '1', 'UV_PYTHON_BIN_DIR': p.join(paths.dataDir, 'bin')};
     switch (step.kind) {

@@ -148,8 +148,8 @@ class _Sidebar extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = AppColors.of(context);
     final s = services;
-    // Room for the traffic lights when the content extends under the title bar.
-    final top = Platform.isMacOS && Chrome.vibrancy ? 40.0 : 14.0;
+    // Room for the traffic lights: the content runs under the title bar on macOS (38), 28 elsewhere keeps the same rhythm.
+    final top = Platform.isMacOS ? 38.0 : 28.0;
     return Container(
       width: Layout.sidebarWidth,
       padding: EdgeInsets.fromLTRB(10, top, 10, 14),
@@ -329,7 +329,7 @@ class _QueueStatus extends StatelessWidget {
             children: [
               Text(
                 q.running?.title ?? t.shell.stage.transcribe,
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: TypeSize.caption, fontWeight: FontWeight.w600, color: c.text),
               ),

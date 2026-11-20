@@ -48,6 +48,8 @@ class _ScoreViewState extends State<ScoreView> {
   WebViewController? _web;
   Timer? _debounce;
   bool _pageReady = false, _notation = false;
+  // True once we know whether a WebView exists: at once off macOS, after the first load attempt on macOS.
+  bool _webSettled = !Platform.isMacOS;
   String _last = '';
   Color? _htmlColor;
 
@@ -102,6 +104,7 @@ class _ScoreViewState extends State<ScoreView> {
       ctl =
           WebViewController(); // asserts when no platform implementation is registered (tests)
     } catch (_) {
+      _giveUpWeb();
       return;
     }
     _pageReady = false;
@@ -130,6 +133,7 @@ class _ScoreViewState extends State<ScoreView> {
         ),
       );
     } catch (_) {
+      _giveUpWeb();
       return; // stay on the text view
     }
     if (!mounted) return;
@@ -139,6 +143,11 @@ class _ScoreViewState extends State<ScoreView> {
         _notation = true;
       }
     });
+  }
+
+  void _giveUpWeb() {
+    if (_webSettled || !mounted) return;
+    setState(() => _webSettled = true);
   }
 
   void _push() {
@@ -201,16 +210,16 @@ class _ScoreViewState extends State<ScoreView> {
               )
             else
               const Spacer(),
-            if (_hasWeb)
-              Segmented<String>(
-                key: const ValueKey('score.view'),
-                segments: [
-                  ('notation', t.score.notation),
-                  ('text', t.score.text),
-                ],
-                selected: showNotation ? 'notation' : 'text',
-                onChanged: (v) => setState(() => _notation = v == 'notation'),
-              ),
+            // Always visible; where no WebView exists the Notation segment shows the fallback note below.
+            Segmented<String>(
+              key: const ValueKey('score.view'),
+              segments: [
+                ('notation', t.score.notation),
+                ('text', t.score.text),
+              ],
+              selected: _notation ? 'notation' : 'text',
+              onChanged: (v) => setState(() => _notation = v == 'notation'),
+            ),
           ],
         ),
         const SizedBox(height: 8),
@@ -268,10 +277,10 @@ class _ScoreViewState extends State<ScoreView> {
             ],
           ),
         ),
-        if (!_hasWeb && !Platform.isMacOS)
+        if (_notation && !_hasWeb && _webSettled)
           Padding(
             padding: const EdgeInsets.only(top: 4),
-            child: Text(t.score.unavailable, style: theme.textTheme.bodySmall),
+            child: Text(t.score.unavailable, style: theme.textTheme.bodySmall, maxLines: 1, overflow: TextOverflow.ellipsis),
           ),
       ],
     );

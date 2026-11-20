@@ -79,14 +79,41 @@ void main() {
     expect(order, [...order]..sort());
     expect(statusOf(t, generating), 'Generating');
     expect(statusOf(t, queued), 'Queued');
-    expect(statusOf(t, done), 'Done');
     expect(statusOf(t, failed), 'Failed');
+    // A finished row prints no status: the label exists for e2e and screen readers but is invisible.
+    expect(statusOf(t, done), 'Done');
+    final hidden = t.widget<Opacity>(find.ancestor(of: inRow(done, const Key('library.status')), matching: find.byType(Opacity)).first);
+    expect(hidden.opacity, 0);
+    // Running and queued status is in accent.
+    final accent = Theme.of(t.element(row(queued))).colorScheme.primary;
+    expect(t.widget<Text>(inRow(queued, const Key('library.status'))).style?.color, accent);
+    expect(t.widget<Text>(inRow(generating, const Key('library.status'))).style?.color, accent);
     expect(find.text('Out of memory'), findsOneWidget);
     expect(inRow(failed, const Key('library.delete')), findsOneWidget);
     expect(inRow(done, const Key('library.play')), findsOneWidget);
     expect(inRow(queued, const Key('library.play')), findsNothing);
     expect(find.text('1:04'), findsOneWidget);
     expect(find.text('warm piano pop'), findsNWidgets(3)); // the failed row shows its error instead
+  });
+
+  testWidgets('subtitle is a short style: first three terms only', (t) async {
+    final s = lib.create(
+      title: 'Long style',
+      request: const SongRequest(style: 'English, warm piano pop, expressive vocal, 80 bpm, reverb', lyrics: 'x', cot: CotMode.full, seed: 1),
+    );
+    await pump(t);
+    expect(find.descendant(of: row(s), matching: find.text('English, warm piano pop, expressive vocal')), findsOneWidget);
+    expect(find.descendant(of: row(s), matching: find.textContaining('80 bpm')), findsNothing);
+  });
+
+  testWidgets('title column, Created and Length keep roughly 45/22/12 of the space, Length is right aligned', (t) async {
+    await pump(t);
+    final title = t.getSize(inRow(done, const Key('library.title'))).width;
+    final length = t.getTopRight(find.text('1:04')).dx;
+    final created = t.getTopLeft(find.text(formatDate(done.createdAt))).dx;
+    final titleRight = t.getTopLeft(inRow(done, const Key('library.title'))).dx + title;
+    expect(created - titleRight, greaterThanOrEqualTo(16)); // gutter before Created
+    expect(t.getTopLeft(row(done)).dx + t.getSize(row(done)).width - length, lessThan(120)); // Length hugs the right edge
   });
 
   testWidgets('like toggles and the Liked filter hides the rest', (t) async {

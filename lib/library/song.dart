@@ -3,6 +3,11 @@ import 'dart:convert';
 import '../artwork/artwork.dart';
 import '../engine/protocol.dart';
 
+/// First three comma-separated terms of a style prompt, for rows and the player ("English, warm piano pop, expressive").
+/// The full prompt stays in meta.json and is reused by "Reuse Style and Lyrics".
+String shortStyle(String style, [int terms = 3]) =>
+    style.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).take(terms).join(', ');
+
 enum SongStatus { queued, generating, done, failed }
 
 enum SongKind { song, cover }

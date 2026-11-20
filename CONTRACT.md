@@ -18,6 +18,7 @@ Hard deadline: **today 16:00**. Speed is the priority of this document.
 | Name | "YuE2 Studio" in bundle and file names; displayed as "YuE² Studio" with the 2 as a superscript. About screen and README say: unofficial client, not affiliated with the YuE2 authors. |
 | Logo | The mark in `reference/yue2-logo.webp` (circle + notes, terracotta). Redraw it as a vector path in code. |
 | Platforms | Ships: macOS 14+, Apple Silicon only. Linux build exists only for tests. |
+| System requirements | Minimum: Apple Silicon, macOS 14, 16 GB memory, 15 GB free disk, network on first run. Recommended: 24 GB memory, 25 GB free. Enforced by the setup preflight (section 3.1). |
 | Language | English UI only, but every string goes through `slang` from the first commit. |
 | Look | Apple look and feel: translucent sidebar (Create, Cover, Library), San Francisco system font, light and dark following the system, controls and spacing like Apple Music/Podcasts, terracotta as accent. Final tokens come from `design/DESIGN.md` (see section 8). |
 | Animations | Written in Flutter code (fragment shaders, CustomPainter). No Rive, no Lottie, no video. The most refined animation is the song-generation state. |
@@ -29,7 +30,7 @@ Hard deadline: **today 16:00**. Speed is the priority of this document.
 
 ## 3. Features (all four ship today, in this order)
 
-1. **First-run setup**: one screen that downloads and installs everything (engine + all models, Cover included, about 10 GB), with real progress per step, resumable, retry on failure, free-disk check before starting. Shows the model licence note (weights are CC BY-NC 4.0 with creator permission) and the unofficial notice.
+1. **First-run setup**: starts with a **preflight** before any download. Block, with a message that names the problem, on: Intel Mac, macOS older than 14, less than 16 GB memory, less than 15 GB free disk. Warn without blocking at exactly 16 GB ("It works, but close other apps while generating"). On Macs with less than 24 GB, unload the YuE2 pipeline before running a Cover transcription and reload it after (the transcriber's memory use is unmeasured). README lists the same requirements. Then one screen that downloads and installs everything (engine + all models, Cover included, about 10 GB), with real progress per step, resumable, retry on failure, free-disk check before starting. Shows the model licence note (weights are CC BY-NC 4.0 with creator permission) and the unofficial notice.
 2. **Create (Text to Song)**: title (optional, defaults to the first lyric line), style, lyrics (section tags `[Verse]`, `[Chorus]`), symbolic plan mode (`full` default, `melody`, `off`), seed (random by default). Generate.
 3. **Library**: every generation, newest first, with artwork, title, duration, date, status (queued, generating, done, failed). Actions: play (persistent player bar at the bottom), like, rename, delete, filter "liked only", "reuse style and lyrics" (prefills Create), export audio file. Not today: playlists, sharing, search.
 4. **Cover**: upload a recording (wav, flac, mp3, ogg), choose "Close" (melody + chords, `cot=full`) or "Free" (melody only, `cot=melody`), transcribe to an ABC score shown in an editable field (pasting your own score also works), then style + lyrics + generate. Lyrics are typed by the user; there is no lyric recognition.

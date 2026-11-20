@@ -5,6 +5,7 @@ import '../engine/protocol.dart';
 /// The Create form's state, kept outside the widget so it survives screen switches and can be prefilled
 /// (Library "Reuse Style and Lyrics") from anywhere.
 class CreateDraft extends ChangeNotifier {
+  final title = TextEditingController();
   final style = TextEditingController();
   final lyrics = TextEditingController();
   final seed = TextEditingController();
@@ -17,7 +18,8 @@ class CreateDraft extends ChangeNotifier {
   VoidCallback? onPrefill;
 
   /// [cot] is a [CotMode] or its name; null fields keep their value.
-  void prefill({String? style, String? lyrics, Object? cot, int? seed}) {
+  void prefill({String? title, String? style, String? lyrics, Object? cot, int? seed}) {
+    if (title != null) this.title.text = title;
     if (style != null) this.style.text = style;
     if (lyrics != null) this.lyrics.text = lyrics;
     if (cot != null) this.cot = cot is CotMode ? cot : CotMode.parse('$cot');
@@ -46,6 +48,7 @@ class CreateDraft extends ChangeNotifier {
 
   @override
   void dispose() {
+    title.dispose();
     style.dispose();
     lyrics.dispose();
     seed.dispose();

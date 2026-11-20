@@ -64,17 +64,24 @@ class Blob {
 
 /// Everything v1 draws, derived from the seed alone. Draw order of the PRNG is part of the version.
 class ArtworkParams {
-  ArtworkParams._(this.hue, this.hue2, this.blobs, this.motif, this.density, this.alpha, this.cx, this.cy,
-      this.angle, this.phase, this.dotSizes);
+  ArtworkParams._(this.hue, this.hue2, this.lightA, this.lightB, this.blobs, this.motif, this.density, this.alpha,
+      this.cx, this.cy, this.angle, this.phase, this.dotSizes);
 
+  // Version 1 has never shipped, so it could still be tuned on 2026-11-20 (wider hue pairs, motif from the PRNG after a
+  // warm-up so neighbouring seeds differ). From the first release on it is frozen.
   factory ArtworkParams.v1(int seed) {
     final r = Mulberry32(seed);
+    for (var i = 0; i < 4; i++) {
+      r.nextInt(); // warm-up: consecutive seeds start from unrelated states
+    }
     final hue = r.next() * 360;
-    final hue2 = (hue + 40 + r.next() * 100) % 360;
+    final hue2 = (hue + 70 + r.next() * 160) % 360; // 70-230 degrees apart: clearly two colours
+    final lightA = .40 + r.next() * .14;
+    final lightB = .22 + r.next() * .14;
     final blobs = [
       for (var i = 0; i < 3; i++) Blob(r.next(), r.next(), .25 + r.next() * .45, (hue + 150 * r.next()) % 360),
     ];
-    final motif = Motif.values[(r.next() * Motif.values.length).floor()];
+    final motif = Motif.values[r.nextInt() % Motif.values.length];
     final density = 4 + (r.next() * 7).floor();
     final alpha = .34 + r.next() * .06;
     final cx = r.next();
@@ -82,13 +89,13 @@ class ArtworkParams {
     final angle = r.next() * math.pi;
     final phase = r.next() * math.pi * 2;
     final dots = [for (var i = 0; i < density * density; i++) r.next()];
-    return ArtworkParams._(hue, hue2, blobs, motif, density, alpha, cx, cy, angle, phase, dots);
+    return ArtworkParams._(hue, hue2, lightA, lightB, blobs, motif, density, alpha, cx, cy, angle, phase, dots);
   }
 
   /// Unknown future versions fall back to the newest one this build knows.
   factory ArtworkParams.forSpec(ArtworkSpec s) => ArtworkParams.v1(s.seed);
 
-  final double hue, hue2, alpha, cx, cy, angle, phase;
+  final double hue, hue2, lightA, lightB, alpha, cx, cy, angle, phase;
   final List<Blob> blobs;
   final Motif motif;
   final int density;
@@ -111,7 +118,7 @@ class ArtworkPainter extends CustomPainter {
     canvas.drawRect(
         rect,
         Paint()
-          ..shader = ui.Gradient.linear(Offset.zero, Offset(s, s), [_hsl(p.hue, .62, .46), _hsl(p.hue2, .58, .30)]));
+          ..shader = ui.Gradient.linear(Offset.zero, Offset(s, s), [_hsl(p.hue, .66, p.lightA), _hsl(p.hue2, .62, p.lightB)]));
     for (final b in p.blobs) {
       final c = Offset(b.x * s, b.y * s);
       canvas.drawRect(

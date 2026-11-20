@@ -108,7 +108,7 @@ class JobQueue extends ChangeNotifier {
     double? sourceSeconds,
   }) {
     final song = library.create(
-      title: title ?? _title(style, lyrics),
+      title: (title?.trim().isEmpty ?? true) ? _title(lyrics) : title!.trim(),
       kind: kind,
       request: SongRequest(
         style: style.trim(),
@@ -310,14 +310,16 @@ class JobQueue extends ChangeNotifier {
     if (s != null) library.update(s.copyWith(status: SongStatus.failed, error: message));
   }
 
-  static String _title(String style, String lyrics) {
-    String cut(String s) => s.length > 48 ? s.substring(0, 48) : s;
+  /// Song name when the user gave none: the first lyric line with its section tag stripped, "Untitled" plus the date for
+  /// instrumentals.
+  static String _title(String lyrics) {
     for (final l in lyrics.split('\n')) {
-      final s = l.trim();
-      if (s.isNotEmpty && !s.startsWith('[')) return cut(s);
+      final s = l.replaceAll(RegExp(r'\[[^\]]*\]'), '').trim();
+      if (s.isNotEmpty) return s.length > 48 ? s.substring(0, 48) : s;
     }
-    final s = style.trim();
-    return s.isEmpty ? t.create.untitled : cut(s);
+    final n = DateTime.now();
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${t.create.untitled} ${n.year}-${two(n.month)}-${two(n.day)}';
   }
 
   @override

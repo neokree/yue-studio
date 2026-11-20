@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import 'package:yue2_studio/setup/manifest.dart';
 import 'package:yue2_studio/setup/setup_screen.dart';
 import 'package:yue2_studio/setup/step_runner.dart';
 import 'package:yue2_studio/theme/theme.dart';
+import 'package:yue2_studio/theme/tokens.dart';
 
 /// Records the steps it ran; [onRun] decides what each one does.
 class FakeRunner implements StepRunner {
@@ -32,6 +34,18 @@ final manifest = SetupManifest.fromJson({
     {'id': 'model', 'kind': 'hf', 'label': 'YuE2 song model', 'repo': 'x/y', 'bytes': 6800000000, 'venv': 'yue2'},
   ],
 });
+
+double _lum(Color c) {
+  double ch(double v) => v <= 0.03928 ? v / 12.92 : math.pow((v + 0.055) / 1.055, 2.4).toDouble();
+  return 0.2126 * ch(c.r) + 0.7152 * ch(c.g) + 0.0722 * ch(c.b);
+}
+
+/// WCAG contrast; a translucent foreground is flattened over [bg] first.
+double contrast(Color fg, Color bg) {
+  final f = Color.alphaBlend(fg, bg);
+  final a = _lum(f), b = _lum(bg);
+  return (math.max(a, b) + 0.05) / (math.min(a, b) + 0.05);
+}
 
 void main() {
   late Directory tmp;
@@ -77,6 +91,7 @@ void main() {
     await tester.pump();
     expect(find.text('3.4 of 6.8 GB'), findsOneWidget);
     expect(find.text('Installing...'), findsOneWidget);
+    expect(find.text('Installing Python'), findsNothing);
     expect(tester.widget<FilledButton>(find.byKey(const Key('setup.install'))).onPressed, isNull);
     // py + venv share 11.5 - 6.8 = 4.7 GB; both done = 4.7 GB, plus half the model = 3.4 GB
     expect(find.text('8.1 of 11.5 GB'), findsOneWidget);
@@ -86,21 +101,130 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('indeterminate step shows its phase and last output line', (tester) async {
+  testWidgets('uv step: no raw uv line, no phase text in the size slot, bar sweeps; bytes count when it finishes', (tester) async {
     final gate = Completer<void>();
     final i = make(FakeRunner((step, report) async {
       if (step.id == 'py') {
-        report(phase: 'python', detail: 'Downloading cpython-3.12');
+        report(phase: 'python', detail: 'Downloading cpython-3.12.16-linux-aarch64-gnu (download) (27.9MiB)');
         await gate.future;
       }
     }));
     await show(tester, i);
     final run = i.install();
     await tester.pump();
-    expect(find.text('Installing Python'), findsOneWidget);
-    expect(find.text('Downloading cpython-3.12'), findsOneWidget);
+    expect(find.textContaining('cpython'), findsNothing);
+    expect(find.text('Installing Python'), findsNothing);
+    // the size slot of the running Python row still holds its size (4.7 GB shared by py + venv = 2.4 GB each)
+    expect(tester.widget<Text>(find.byKey(const Key('setup.step.size.py'))).data, '2.4 GB');
+    expect(i.indeterminate, isTrue);
+    expect(find.text('0.0 of 11.5 GB'), findsOneWidget);
     gate.complete();
     await run;
+    await tester.pump();
+    expect(i.indeterminate, isFalse);
+    expect(find.text('11.5 of 11.5 GB'), findsOneWidget);
+  });
+
+  testWidgets('venv step shows a human phase line', (tester) async {
+    final gate = Completer<void>();
+    final i = make(FakeRunner((step, report) async {
+      if (step.id == 'venv') {
+        report(phase: 'packages', detail: 'Resolved 91 packages in 1.2s');
+        await gate.future;
+      }
+    }));
+    await show(tester, i);
+    final run = i.install();
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Installing packages'), findsOneWidget);
+    expect(find.textContaining('Resolved'), findsNothing);
+    gate.complete();
+    await run;
+  });
+
+  testWidgets('failed step: names the step, shows the cause and the way to recover', (tester) async {
+    final i = make(FakeRunner((step, report) async {
+      if (step.id == 'model') throw SetupException('Network connection lost.');
+    }));
+    await show(tester, i);
+    await i.install();
+    await tester.pump();
+    expect(find.text("Couldn't finish YuE2 song model."), findsOneWidget);
+    expect(find.text('Network connection lost.'), findsOneWidget);
+    expect(find.byKey(const Key('setup.step.recovery')), findsOneWidget);
+    expect(find.text('Retry'), findsOneWidget);
+    expect(i.indeterminate, isFalse);
+  });
+
+  testWidgets('finished: every dot filled, ready line, total equals the manifest', (tester) async {
+    final i = make(FakeRunner((_, _) async {}), done: {'py', 'venv', 'model'});
+    await show(tester, i);
+    expect(find.text('Everything is installed. Opening your studio.'), findsOneWidget);
+    expect(find.text('Setting up YuE'), findsNothing); // title is a rich text; the subtitle swapped
+    expect(find.text('Your private-first music generation studio. Music is generated locally.'), findsNothing);
+  });
+
+  testWidgets('8 real manifest steps fit the 1040x780 first-run window, sizes sum to the total', (tester) async {
+    tester.view.physicalSize = const Size(1040, 780);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final real = SetupManifest.read('engine/manifests/real.json');
+    expect(real.steps.length, 8);
+    expect(real.steps.every((s) => s.bytes > 0), isTrue);
+    expect(real.steps.fold<int>(0, (a, s) => a + s.bytes), real.bytes);
+    final i = Installer(paths: paths, manifest: real, runner: FakeRunner((_, _) async {}), freeBytes: (_) async => 100000000000);
+    await tester.pumpWidget(MaterialApp(theme: buildTheme(Brightness.light), home: SetupScreen(installer: i)));
+    expect(tester.takeException(), isNull);
+    expect(find.text('0.0 of 13.5 GB'), findsOneWidget);
+    expect(find.text('7.3 GB'), findsOneWidget);
+    expect(find.text('17 MB'), findsNWidgets(2));
+    expect(find.text('1.7 GB'), findsOneWidget);
+    expect(find.text('1.2 GB'), findsOneWidget);
+    // everything reachable: Install button is on screen without scrolling
+    expect(tester.getBottomLeft(find.byKey(const Key('setup.install'))).dy, lessThan(780));
+  });
+
+  testWidgets('dark theme: window #1E1E20, accent #D97C62, readable disabled button, fine print', (tester) async {
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+    final gate = Completer<void>();
+    final i = make(FakeRunner((_, _) => gate.future));
+    await tester.pumpWidget(MaterialApp(theme: buildTheme(Brightness.dark), home: SetupScreen(installer: i)));
+    expect(tester.widget<Scaffold>(find.byType(Scaffold)).backgroundColor, const Color(0xFF1E1E20));
+    expect(tester.widget<LinearProgressIndicator>(find.byKey(const Key('setup.bar'))).color, const Color(0xFFD97C62));
+    final run = i.install();
+    await tester.pump();
+    final btn = tester.widget<FilledButton>(find.byKey(const Key('setup.install')));
+    expect(btn.onPressed, isNull);
+    final s = btn.style!;
+    final fg = s.foregroundColor!.resolve({WidgetState.disabled})!;
+    final bg = s.backgroundColor!.resolve({WidgetState.disabled})!;
+    expect(contrast(fg, bg), greaterThan(4.5));
+    gate.complete();
+    await run;
+  });
+
+  test('contrast of the texts the setup screen uses, both themes', () {
+    for (final (name, c) in [('light', AppColors.light), ('dark', AppColors.dark)]) {
+      expect(contrast(c.text, c.background), greaterThan(7), reason: name);
+      expect(contrast(c.textSecondary, c.background), greaterThan(4.5), reason: name);
+      expect(contrast(c.textSecondary, c.field), greaterThan(4.5), reason: name);
+      expect(contrast(c.error, c.background), greaterThan(4.5), reason: name);
+      expect(contrast(c.onAccent, c.accent), greaterThan(4.5), reason: name);
+    }
+    // The 8.5 px footer is textTertiary by spec: dark is comfortably above 4.5.
+    expect(contrast(AppColors.dark.textTertiary, AppColors.dark.background), greaterThan(4.5));
+  });
+
+  test('test hook: YUE2_STUDIO_TEST_FAIL_STEP fails that step once', () async {
+    final r = ProcessStepRunner(paths, failStep: 'py');
+    await expectLater(r.run(manifest.steps.first, ({phase, progress, doneBytes, totalBytes, detail}) {}), throwsA(isA<SetupException>()));
+    // second time it really runs (uv is /none here, so it fails differently: could not start)
+    await expectLater(
+      r.run(manifest.steps.first, ({phase, progress, doneBytes, totalBytes, detail}) {}),
+      throwsA(isA<SetupException>().having((e) => e.message, 'message', contains('Could not start'))),
+    );
   });
 
   testWidgets('failed step shows its message, Retry resumes from it and skips finished steps', (tester) async {

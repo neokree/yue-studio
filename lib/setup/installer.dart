@@ -101,6 +101,10 @@ class Installer extends ChangeNotifier {
     return sum.round();
   }
 
+  /// A step is running that cannot report bytes (uv python/venv, or a download before its first byte):
+  /// the bar animates indeterminately after the filled part. Its bytes count as done when it finishes.
+  bool get indeterminate => states.values.any((s) => s.status == StepStatus.running && s.progress == null);
+
   /// 0..1 for the one overall bar.
   double get overall => totalBytes == 0 ? (complete ? 1 : 0) : (downloadedBytes / totalBytes).clamp(0.0, 1.0);
 

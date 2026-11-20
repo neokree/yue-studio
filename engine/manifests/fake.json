@@ -1,12 +1,13 @@
 {
   "name": "fake",
-  "bytes": 50000000,
+  "bytes": 23000000,
   "steps": [
     {
       "id": "python-3.12",
       "kind": "python",
       "label": "Python 3.12",
-      "version": "3.12"
+      "version": "3.12",
+      "bytes": 17000000
     },
     {
       "id": "venv-yue2",
@@ -14,7 +15,8 @@
       "label": "Engine environment",
       "name": "yue2",
       "python": "3.12",
-      "packages": []
+      "packages": [],
+      "bytes": 6000000
     }
   ]
 }

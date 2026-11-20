@@ -5,7 +5,9 @@ import 'dart:typed_data';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import '../artwork/artwork.dart';
 import '../generation/format.dart';
 import '../i18n/strings.g.dart';
 import '../library/song.dart';
@@ -32,6 +34,7 @@ class CoverScreen extends StatefulWidget {
 
 class _CoverScreenState extends State<CoverScreen> {
   final _score = TextEditingController();
+  final _title = TextEditingController();
   final _style = TextEditingController();
   final _lyrics = TextEditingController();
   final _seed = TextEditingController();
@@ -48,6 +51,7 @@ class _CoverScreenState extends State<CoverScreen> {
   @override
   void dispose() {
     _score.dispose();
+    _title.dispose();
     _style.dispose();
     _lyrics.dispose();
     _seed.dispose();
@@ -154,6 +158,7 @@ class _CoverScreenState extends State<CoverScreen> {
       cot: _mode == 'close' ? 'full' : 'melody',
       seed: int.tryParse(_seed.text.trim()) ?? Random().nextInt(1 << 31),
       abc: _score.text.trim(),
+      title: _title.text.trim().isEmpty ? null : _title.text.trim(),
       kind: SongKind.cover,
       sourceSeconds: _seconds,
     );
@@ -168,8 +173,9 @@ class _CoverScreenState extends State<CoverScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final c = AppColors.of(context);
     final small = theme.textTheme.bodySmall;
-    final err = TextStyle(fontSize: TypeSize.caption, color: AppColors.of(context).error);
+    final err = TextStyle(fontSize: TypeSize.caption, color: c.error);
     return LayoutBuilder(
       builder: (context, box) => SingleChildScrollView(
         padding: Layout.contentPadding,
@@ -179,7 +185,7 @@ class _CoverScreenState extends State<CoverScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(t.cover.title, style: theme.textTheme.titleLarge),
-              const SizedBox(height: 16),
+              const SizedBox(height: Space.md),
               _FileStrip(
                 path: _file,
                 bytes: _bytes,
@@ -192,8 +198,11 @@ class _CoverScreenState extends State<CoverScreen> {
                 busy: _transcribing,
                 onPick: _pick,
                 onRemove: _remove,
+                onTranscribe: _transcribe,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: Space.md),
+              Container(height: 1, color: c.divider), // groups the strip apart from the form
+              const SizedBox(height: Space.md),
               Expanded(
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -211,7 +220,7 @@ class _CoverScreenState extends State<CoverScreen> {
                               readOnly: _transcribing,
                             ),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: Space.sm),
                           Row(
                             children: [
                               IgnorePointer(
@@ -229,69 +238,55 @@ class _CoverScreenState extends State<CoverScreen> {
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
-                                  _mode == 'close' ? t.cover.modeHintClose
-                                      : t.cover.modeHintFree,
+                                  _mode == 'close' ? t.cover.modeHintClose : t.cover.modeHintFree,
                                   style: small,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              OutlinedButton(
-                                key: const Key('cover.transcribe'),
-                                onPressed: _file == null || _transcribing
-                                    ? null
-                                    : _transcribe,
-                                child: Text(t.cover.transcribe),
+                          if (_transcribing)
+                            Padding(
+                              padding: const EdgeInsets.only(top: Space.sm),
+                              child: Row(
+                                children: [
+                                  const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: Text(t.cover.transcribing, style: small)),
+                                ],
                               ),
-                              const SizedBox(width: 12),
-                              if (_transcribing) ...[
-                                const SizedBox(
-                                  width: 14,
-                                  height: 14,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    t.cover.transcribing,
-                                    style: small,
-                                  ),
-                                ),
-                              ] else if (_transcribeError != null)
-                                Expanded(
-                                  child: Text(
-                                    _transcribeError!,
-                                    style: err,
-                                    key: const Key('cover.error'),
-                                  ),
-                                ),
-                            ],
-                          ),
+                            )
+                          else if (_transcribeError != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: Space.sm),
+                              child: Text(_transcribeError!, style: err, key: const Key('cover.error')),
+                            ),
                         ],
                       ),
                     ),
-                    const SizedBox(width: 24),
+                    const SizedBox(width: Space.lg),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          _Label(t.cover.titleLabel, t.cover.titleHint),
+                          TextField(
+                            key: const Key('cover.title'),
+                            controller: _title,
+                            decoration: InputDecoration(hintText: t.cover.titlePlaceholder),
+                          ),
+                          const SizedBox(height: Space.md),
                           _Label(t.cover.styleTitle, t.cover.styleHint),
                           TextField(
                             key: const Key('cover.style'),
                             controller: _style,
                             minLines: 2,
                             maxLines: 3,
-                            decoration: InputDecoration(
-                              hintText: t.cover.stylePlaceholder,
-                            ),
+                            decoration: InputDecoration(hintText: t.cover.stylePlaceholder),
                             onChanged: (_) => setState(() => _problem = null),
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: Space.md),
                           _Label(t.cover.lyricsTitle, t.cover.lyricsHint),
                           Expanded(
                             child: TextField(
@@ -301,9 +296,7 @@ class _CoverScreenState extends State<CoverScreen> {
                               maxLines: null,
                               minLines: null,
                               textAlignVertical: TextAlignVertical.top,
-                              decoration: InputDecoration(
-                                hintText: t.cover.lyricsPlaceholder,
-                              ),
+                              decoration: InputDecoration(hintText: t.cover.lyricsPlaceholder),
                               onChanged: (_) => setState(() => _problem = null),
                             ),
                           ),
@@ -313,55 +306,48 @@ class _CoverScreenState extends State<CoverScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: Space.md),
+              // Bottom row as in Create, minus the plan: on Cover Close / Free already fixes it.
               Row(
                 children: [
+                  Text(t.cover.seed, style: theme.textTheme.labelLarge),
+                  const SizedBox(width: Space.sm),
                   SizedBox(
-                    width: 120,
+                    width: 96,
                     child: TextField(
                       key: const Key('cover.seed'),
                       controller: _seed,
                       keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: t.cover.seed,
-                        hintText: t.cover.seedHint,
-                      ),
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: InputDecoration(hintText: t.cover.seedHint),
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 14),
                   Expanded(
                     child: _problem != null
-                        ? Text(
-                            _problem!,
-                            style: err,
-                            key: const Key('cover.problem'),
-                          )
+                        ? Text(_problem!, style: err, key: const Key('cover.problem'), maxLines: 1, overflow: TextOverflow.ellipsis)
                         : _queued
-                        ? Text(
-                            t.cover.queued,
-                            style: small,
-                            key: const Key('cover.queued'),
-                          )
+                        ? Text(t.cover.queued, style: small, key: const Key('cover.queued'))
                         : const SizedBox.shrink(),
                   ),
                   ListenableBuilder(
                     listenable: _lyrics,
                     builder: (_, _) => Text(
-                      t.cover.estimate(
-                        time: formatDuration(
-                          widget.estimate(
-                            lyrics: _lyrics.text,
-                            sourceSeconds: _seconds,
-                          ),
-                        ),
-                      ),
+                      _seconds == null
+                          ? t.cover.estimateIdle
+                          : t.cover.estimate(
+                              time: formatDuration(widget.estimate(lyrics: _lyrics.text, sourceSeconds: _seconds)),
+                            ),
                       key: const Key('cover.estimate'),
-                      style: small?.copyWith(
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: c.textTertiary,
                         fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 14),
                   FilledButton(
                     key: const Key('cover.generate'),
                     onPressed: _generate,
@@ -377,26 +363,26 @@ class _CoverScreenState extends State<CoverScreen> {
   }
 }
 
+/// Bold label with the quiet hint beside it, one line, as in Create.
 class _Label extends StatelessWidget {
   const _Label(this.title, this.hint);
   final String title, hint;
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
+    padding: const EdgeInsets.only(bottom: 6),
     child: Text.rich(
       TextSpan(
         children: [
-          TextSpan(
-            text: title,
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
+          TextSpan(text: title, style: Theme.of(context).textTheme.labelLarge),
           TextSpan(
             text: '  $hint',
-            style: Theme.of(context).textTheme.bodySmall,
+            style: TextStyle(fontSize: TypeSize.caption, color: AppColors.of(context).textTertiary),
           ),
         ],
       ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     ),
   );
 }
@@ -410,13 +396,14 @@ class _FileStrip extends StatelessWidget {
     required this.busy,
     required this.onPick,
     required this.onRemove,
+    required this.onTranscribe,
   });
 
   final String? path, state;
   final int? bytes;
   final double? seconds;
   final bool busy;
-  final VoidCallback onPick, onRemove;
+  final VoidCallback onPick, onRemove, onTranscribe;
 
   @override
   Widget build(BuildContext context) {
@@ -426,14 +413,27 @@ class _FileStrip extends StatelessWidget {
     final has = path != null;
     return Row(
       children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: c.accentSoft,
-            borderRadius: BorderRadius.circular(Radii.artwork),
+        // The file has no song yet: derive a deterministic artwork from its path, or a quiet placeholder.
+        ClipRRect(
+          borderRadius: BorderRadius.circular(Radii.artwork),
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: has
+                ? RepaintBoundary(
+                    key: const Key('cover.artwork'),
+                    child: CustomPaint(painter: ArtworkPainter(ArtworkSpec.forId(path!))),
+                  )
+                : DecoratedBox(
+                    key: const Key('cover.artwork'),
+                    decoration: BoxDecoration(
+                      color: c.field,
+                      border: Border.all(color: c.divider),
+                      borderRadius: BorderRadius.circular(Radii.artwork),
+                    ),
+                    child: Icon(Icons.music_note_outlined, color: c.textTertiary, size: 20),
+                  ),
           ),
-          child: Icon(Icons.graphic_eq, color: c.accent, size: 22),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -449,11 +449,7 @@ class _FileStrip extends StatelessWidget {
               ),
               Text(
                 has
-                    ? t.cover.meta(
-                        size: formatBytes(bytes ?? 0),
-                        length: formatLength(seconds),
-                        state: state!,
-                      )
+                    ? t.cover.meta(size: formatBytes(bytes ?? 0), length: formatLength(seconds), state: state!)
                     : t.cover.pickHint,
                 key: const Key('cover.filemeta'),
                 maxLines: 1,
@@ -465,22 +461,24 @@ class _FileStrip extends StatelessWidget {
         ),
         if (has) ...[
           OutlinedButton(
+            key: const Key('cover.transcribe'),
+            onPressed: busy ? null : onTranscribe,
+            child: Text(t.cover.transcribe),
+          ),
+          const SizedBox(width: Space.sm),
+          OutlinedButton(
             key: const Key('cover.pick'),
             onPressed: busy ? null : onPick,
             child: Text(t.cover.replace),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: Space.sm),
           OutlinedButton(
             key: const Key('cover.remove'),
             onPressed: busy ? null : onRemove,
             child: Text(t.cover.remove),
           ),
         ] else
-          FilledButton(
-            key: const Key('cover.pick'),
-            onPressed: onPick,
-            child: Text(t.cover.pick),
-          ),
+          FilledButton(key: const Key('cover.pick'), onPressed: onPick, child: Text(t.cover.pick)),
       ],
     );
   }

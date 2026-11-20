@@ -128,6 +128,15 @@ class Translations$setup$en {
 	String get fine => 'Unofficial client, not affiliated with the YuE2 authors.';
 
 	late final Translations$setup$phase$en phase = Translations$setup$phase$en._(_root);
+
+	/// en: 'Everything is installed. Opening your studio.'
+	String get ready => 'Everything is installed. Opening your studio.';
+
+	/// en: 'Couldn't finish $step.'
+	String stepFailed({required Object step}) => 'Couldn\'t finish ${step}.';
+
+	/// en: 'Check your internet connection and free disk space, then press Retry. Finished steps are kept and setup continues from here.'
+	String get recovery => 'Check your internet connection and free disk space, then press Retry. Finished steps are kept and setup continues from here.';
 }
 
 // Path: create
@@ -141,6 +150,12 @@ class Translations$create$en {
 	/// en: 'Create'
 	String get title => 'Create';
 
+	/// en: 'Title'
+	String get titleLabel => 'Title';
+
+	/// en: 'Optional. Left empty, the first lyric line is used.'
+	String get titleHint => 'Optional. Left empty, the first lyric line is used.';
+
 	/// en: 'Style'
 	String get style => 'Style';
 
@@ -153,8 +168,8 @@ class Translations$create$en {
 	/// en: 'Lyrics'
 	String get lyrics => 'Lyrics';
 
-	/// en: 'Use [Verse] and [Chorus].'
-	String get lyricsHint => 'Use [Verse] and [Chorus].';
+	/// en: 'Use [Verse] and [Chorus]. Leave empty for instrumental.'
+	String get lyricsHint => 'Use [Verse] and [Chorus]. Leave empty for instrumental.';
 
 	/// en: '[Verse] Write your lyrics here [Chorus] ...'
 	String get lyricsPlaceholder => '[Verse]\nWrite your lyrics here\n\n[Chorus]\n...';
@@ -231,8 +246,8 @@ class Translations$cover$en {
 	/// en: 'Score'
 	String get scoreTitle => 'Score';
 
-	/// en: 'Taken from the recording, or paste your own'
-	String get scoreHint => 'Taken from the recording, or paste your own';
+	/// en: 'From the recording, or paste your own'
+	String get scoreHint => 'From the recording, or paste your own';
 
 	/// en: 'Close'
 	String get modeClose => 'Close';
@@ -267,8 +282,8 @@ class Translations$cover$en {
 	/// en: 'Lyrics'
 	String get lyricsTitle => 'Lyrics';
 
-	/// en: 'Typed by you, in the order of the score's sections. They are not recognised from the recording.'
-	String get lyricsHint => 'Typed by you, in the order of the score\'s sections. They are not recognised from the recording.';
+	/// en: 'In the order of the score's sections'
+	String get lyricsHint => 'In the order of the score\'s sections';
 
 	/// en: '[Verse] Write your lyrics here [Chorus] ...'
 	String get lyricsPlaceholder => '[Verse]\nWrite your lyrics here\n\n[Chorus]\n...';
@@ -276,8 +291,8 @@ class Translations$cover$en {
 	/// en: 'Seed'
 	String get seed => 'Seed';
 
-	/// en: 'Random'
-	String get seedHint => 'Random';
+	/// en: 'random'
+	String get seedHint => 'random';
 
 	/// en: 'About $time on this Mac'
 	String estimate({required Object time}) => 'About ${time} on this Mac';
@@ -299,6 +314,18 @@ class Translations$cover$en {
 
 	/// en: 'Write the lyrics first.'
 	String get needLyrics => 'Write the lyrics first.';
+
+	/// en: 'Title'
+	String get titleLabel => 'Title';
+
+	/// en: 'Optional, defaults to the first lyric line'
+	String get titleHint => 'Optional, defaults to the first lyric line';
+
+	/// en: 'Untitled'
+	String get titlePlaceholder => 'Untitled';
+
+	/// en: 'Choose a recording for an estimate'
+	String get estimateIdle => 'Choose a recording for an estimate';
 }
 
 // Path: library
@@ -463,11 +490,11 @@ class Translations$generation$en {
 	/// en: 'Loading model'
 	String get loading => 'Loading model';
 
-	/// en: 'Planning score, $n tokens'
-	String planning({required Object n}) => 'Planning score, ${n} tokens';
+	/// en: 'Planning score, $pct%'
+	String planning({required Object pct}) => 'Planning score, ${pct}%';
 
-	/// en: 'Composing melody, $n tokens'
-	String composing({required Object n}) => 'Composing melody, ${n} tokens';
+	/// en: 'Composing melody, $pct%'
+	String composing({required Object pct}) => 'Composing melody, ${pct}%';
 
 	/// en: 'Rendering sound, step $done of $total'
 	String rendering({required Object done, required Object total}) => 'Rendering sound, step ${done} of ${total}';
@@ -481,8 +508,8 @@ class Translations$generation$en {
 	/// en: 'Done'
 	String get done => 'Done';
 
-	/// en: 'About $time left'
-	String timeLeft({required Object time}) => 'About ${time} left';
+	/// en: '$status · about $time left'
+	String timeLeft({required Object status, required Object time}) => '${status} · about ${time} left';
 
 	/// en: 'Cancel'
 	String get cancel => 'Cancel';
@@ -504,6 +531,12 @@ class Translations$generation$en {
 
 	/// en: '$m min $s s'
 	String durMinSec({required Object m, required Object s}) => '${m} min ${s} s';
+
+	/// en: '$status · a few seconds left'
+	String timeLeftFew({required Object status}) => '${status} · a few seconds left';
+
+	/// en: '$stage, done'
+	String stageDoneLabel({required Object stage}) => '${stage}, done';
 }
 
 // Path: shell
@@ -800,12 +833,17 @@ extension on Translations {
 			'setup.phase.python' => 'Installing Python',
 			'setup.phase.venv' => 'Creating environment',
 			'setup.phase.packages' => 'Installing packages',
+			'setup.ready' => 'Everything is installed. Opening your studio.',
+			'setup.stepFailed' => ({required Object step}) => 'Couldn\'t finish ${step}.',
+			'setup.recovery' => 'Check your internet connection and free disk space, then press Retry. Finished steps are kept and setup continues from here.',
 			'create.title' => 'Create',
+			'create.titleLabel' => 'Title',
+			'create.titleHint' => 'Optional. Left empty, the first lyric line is used.',
 			'create.style' => 'Style',
 			'create.styleHint' => 'Genre, instruments, voice, language, tempo',
 			'create.stylePlaceholder' => 'English, warm piano pop, expressive female voice, acoustic piano, 88 BPM',
 			'create.lyrics' => 'Lyrics',
-			'create.lyricsHint' => 'Use [Verse] and [Chorus].',
+			'create.lyricsHint' => 'Use [Verse] and [Chorus]. Leave empty for instrumental.',
 			'create.lyricsPlaceholder' => '[Verse]\nWrite your lyrics here\n\n[Chorus]\n...',
 			'create.plan' => 'Plan',
 			'create.planFull' => 'Melody + chords',
@@ -828,7 +866,7 @@ extension on Translations {
 			'cover.stateWorking' => 'transcribing',
 			'cover.stateReady' => 'score ready',
 			'cover.scoreTitle' => 'Score',
-			'cover.scoreHint' => 'Taken from the recording, or paste your own',
+			'cover.scoreHint' => 'From the recording, or paste your own',
 			'cover.modeClose' => 'Close',
 			'cover.modeFree' => 'Free',
 			'cover.modeHintClose' => 'Close keeps the melody and the chords.',
@@ -840,10 +878,10 @@ extension on Translations {
 			'cover.styleHint' => 'The new mood and arrangement',
 			'cover.stylePlaceholder' => 'Italian, acoustic folk, warm female voice, fingerpicked guitar, 80 BPM',
 			'cover.lyricsTitle' => 'Lyrics',
-			'cover.lyricsHint' => 'Typed by you, in the order of the score\'s sections. They are not recognised from the recording.',
+			'cover.lyricsHint' => 'In the order of the score\'s sections',
 			'cover.lyricsPlaceholder' => '[Verse]\nWrite your lyrics here\n\n[Chorus]\n...',
 			'cover.seed' => 'Seed',
-			'cover.seedHint' => 'Random',
+			'cover.seedHint' => 'random',
 			'cover.estimate' => ({required Object time}) => 'About ${time} on this Mac',
 			'cover.generate' => 'Add to Queue',
 			'cover.queued' => 'Added to the queue',
@@ -851,6 +889,10 @@ extension on Translations {
 			'cover.needScore' => 'Transcribe the recording or paste a score first.',
 			'cover.needStyle' => 'Describe the new style first.',
 			'cover.needLyrics' => 'Write the lyrics first.',
+			'cover.titleLabel' => 'Title',
+			'cover.titleHint' => 'Optional, defaults to the first lyric line',
+			'cover.titlePlaceholder' => 'Untitled',
+			'cover.estimateIdle' => 'Choose a recording for an estimate',
 			'library.title' => 'Library',
 			'library.empty' => 'No songs yet. Create one.',
 			'library.status.queued' => 'Queued',
@@ -913,13 +955,13 @@ extension on Translations {
 			'generation.stageMaster' => 'Master',
 			'generation.starting' => 'Starting',
 			'generation.loading' => 'Loading model',
-			'generation.planning' => ({required Object n}) => 'Planning score, ${n} tokens',
-			'generation.composing' => ({required Object n}) => 'Composing melody, ${n} tokens',
+			'generation.planning' => ({required Object pct}) => 'Planning score, ${pct}%',
+			'generation.composing' => ({required Object pct}) => 'Composing melody, ${pct}%',
 			'generation.rendering' => ({required Object done, required Object total}) => 'Rendering sound, step ${done} of ${total}',
 			'generation.mastering' => ({required Object done, required Object total}) => 'Mastering, step ${done} of ${total}',
 			'generation.masteringNoStep' => 'Mastering',
 			'generation.done' => 'Done',
-			'generation.timeLeft' => ({required Object time}) => 'About ${time} left',
+			'generation.timeLeft' => ({required Object status, required Object time}) => '${status} · about ${time} left',
 			'generation.cancel' => 'Cancel',
 			'generation.cancelling' => 'Cancelling',
 			'generation.idle' => 'Nothing is being generated.',
@@ -927,6 +969,8 @@ extension on Translations {
 			'generation.durSec' => ({required Object s}) => '${s} s',
 			'generation.durMin' => ({required Object m}) => '${m} min',
 			'generation.durMinSec' => ({required Object m, required Object s}) => '${m} min ${s} s',
+			'generation.timeLeftFew' => ({required Object status}) => '${status} · a few seconds left',
+			'generation.stageDoneLabel' => ({required Object stage}) => '${stage}, done',
 			'shell.brand.main' => 'YuE',
 			'shell.brand.sup' => '2',
 			'shell.brand.studio' => 'Studio',

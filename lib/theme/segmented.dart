@@ -30,7 +30,8 @@ class Segmented<T> extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(2),
         decoration: BoxDecoration(
-          color: c.field,
+          // Light: the track is a shade darker than a field so the white segment reads, as NSSegmentedControl does.
+          color: identical(c, AppColors.dark) ? c.field : Color.alphaBlend(c.divider, c.field),
           borderRadius: BorderRadius.circular(Radii.segmented),
           border: Border.all(color: c.divider),
         ),
@@ -76,7 +77,7 @@ class _Segment extends StatelessWidget {
                 color: on ? c.background : Colors.transparent,
                 borderRadius: BorderRadius.circular(Radii.segmented - 2),
                 border: focused ? Border.fromBorderSide(focusRing(c)) : null,
-                boxShadow: on ? const [BoxShadow(color: Color(0x29000000), blurRadius: 2, offset: Offset(0, 1))] : null,
+                boxShadow: on ? const [BoxShadow(color: Color(0x40000000), blurRadius: 3, offset: Offset(0, 1))] : null,
               ),
               child: Text(label,
                   style: TextStyle(

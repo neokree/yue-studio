@@ -268,3 +268,89 @@ def test_real_mode_transcribe_without_install_errors(tmp_path):
     finally:
         p.kill()
         p.wait()
+
+
+# ---------------------------------------------------------------- yue2 0.1.6 contract (fake pipeline)
+
+class FakePipeline:
+    """Same __call__ signature and _status usage as yue2 0.1.6: no on_progress kwarg, unknown kwargs go to SongRequest."""
+    progress = False
+    seen = None
+
+    def _status(self, label, *, total=None, unit=None):  # replaced by Yue2Backend.attach
+        raise AssertionError("attach() must replace _status")
+
+    def __call__(self, style=None, lyrics=None, *, tags=None, abc_sampling=None, semantic_sampling=None,
+                 cancelled=None, on_token=None, **kwargs):
+        assert set(kwargs) <= {"cot", "seed", "abc", "cfg_scale", "id"}, kwargs  # SongRequest(**kwargs)
+        assert self.progress is True and callable(cancelled) and not isinstance(cancelled, threading.Event)
+        with self._status("Loading model"):
+            pass
+        with self._status("Planning score", unit="tokens") as s:
+            for _ in range(60):
+                s.advance()
+        with self._status("Generating song", unit="tokens") as s:
+            for _ in range(50):
+                s.advance()
+        with self._status("Synthesizing audio", unit="steps") as s:
+            for i in range(1, 4):
+                s.update(i, total=3)
+        with self._status("Loading audio decoder"):  # runs after nar: must not move progress back to load
+            pass
+        with self._status("Decoding audio", total=2, unit="chunks") as s:
+            s.update(1, total=2)
+            s.update(2, total=2)
+        if cancelled():
+            raise InterruptedError("cancelled")
+
+        class Song:
+            audio = [0.0] * 96000
+            sample_rate = 48000
+            timing = {"abc": {"seconds": 1.5}, "semantic": {"seconds": 2.5}, "nar_seconds": 3.5, "vae_seconds": 0.5}
+
+            def save_artifacts(self, directory):
+                (Path(directory) / "audio.flac").write_bytes(b"x")
+
+        return Song()
+
+
+def test_yue2_backend_reports_progress_through_pipeline_status(tmp_path, monkeypatch):
+    monkeypatch.delenv("YUE2_STUDIO_MANIFEST", raising=False)
+    b = backends.Yue2Backend(tmp_path)
+    b.pipe = FakePipeline()
+    b.attach(b.pipe)
+    events = []
+    r = b.generate({"out": str(tmp_path / "o"), "seed": 5, "cot": "full", "style": "s", "lyrics": "l"},
+                   lambda *a: events.append(a), threading.Event())
+    stages = list(dict.fromkeys(e[0] for e in events))
+    assert stages == ["load", "abc", "semantic", "nar", "vae"]  # no load event after nar
+    assert [e[1:] for e in events if e[0] == "abc"] == [(0, None), (25, None), (50, None)]
+    assert [e[1:] for e in events if e[0] == "nar"] == [(0, None), (1, 3), (2, 3), (3, 3)]
+    assert [e[1:] for e in events if e[0] == "vae"] == [(0, 2), (1, 2), (2, 2)]
+    assert r["audio"] == "audio.flac" and r["duration"] == 2.0 and (tmp_path / "o" / "audio.flac").exists()
+    t = r["timings"]
+    assert (t["abc"], t["semantic"], t["nar"]) == (1.5, 2.5, 3.5) and 0.49 < t["vae"] <= 0.5 and t["load"] >= 0
+
+
+def test_yue2_backend_cancel_maps_to_cancelled(tmp_path, monkeypatch):
+    monkeypatch.delenv("YUE2_STUDIO_MANIFEST", raising=False)
+    b = backends.Yue2Backend(tmp_path)
+    b.pipe = FakePipeline()
+    b.attach(b.pipe)
+    ev = threading.Event()
+    ev.set()
+    with pytest.raises(backends.Cancelled):
+        b.generate({"out": str(tmp_path / "o"), "seed": 5, "cot": "off", "style": "s"}, lambda *a: None, ev)
+
+
+def test_fetch_disables_xet_before_importing_huggingface_hub(tmp_path):
+    stub = tmp_path / "stub"
+    stub.mkdir()
+    (stub / "huggingface_hub.py").write_text(
+        "import os, pathlib\npathlib.Path(os.environ['SEEN']).write_text(os.environ.get('HF_HUB_DISABLE_XET', 'unset'))\n"
+        "HfApi = constants = hf_hub_download = None\n")
+    seen = tmp_path / "seen"
+    env = {k: v for k, v in os.environ.items() if not k.startswith("HF_")}
+    subprocess.run([sys.executable, "-c", f"import sys; sys.path[:0] = [{str(stub)!r}, {str(SIDECAR.parent)!r}]; import fetch"],
+                   env=dict(env, SEEN=str(seen)), check=True, timeout=20)
+    assert seen.read_text() == "1"

@@ -1,5 +1,5 @@
-// End to end: fresh data dir -> setup (fake manifest) -> Create -> generating -> Library done -> like -> rename
-// -> play -> Liked filter -> Cover (Free, fake transcribe) -> cover done -> dark theme pass.
+// End to end: fresh data dir -> setup (forced error, Retry) -> empty Library -> Create (title) -> generating -> like -> rename
+// -> play -> Liked filter -> 3 queued jobs -> Cover (Free, fake transcribe) -> 6 songs -> dark theme pass.
 // Run through tool/test.sh (Docker, Xvfb). Env: E2E_SHOTS_DIR (PNG output), E2E_SONG_JSON (default reference/song.json),
 // YUE2_STUDIO_DATA_DIR (read back meta.json from disk), YUE2_STUDIO_TEST_PICK_FILE (read by the app: Key('cover.pick') uses it).
 // Plus the YUE2_STUDIO_* overrides from engine/PROTOCOL.md section 6.
@@ -129,11 +129,24 @@ Map<String, dynamic>? _meta(String id) {
       : null;
 }
 
+/// All Key('library.status') texts of the visible rows, lower-cased.
+List<String> _statuses() => [for (final id in _rowIds()) _statusOf(_rowOf(id))];
+
+/// Label of the FilledButton behind Key('setup.install') ("Install", "Installing", "Retry") and whether it is enabled.
+({String label, bool enabled}) _installButton() {
+  final b = find.byKey(const Key('setup.install'));
+  if (b.evaluate().isEmpty) return (label: '', enabled: false);
+  final txt = find.descendant(of: b, matching: find.byType(Text));
+  final label = txt.evaluate().isEmpty ? '' : _textOf(txt.first);
+  final w = b.evaluate().first.widget;
+  return (label: label, enabled: w is ButtonStyleButton && w.onPressed != null);
+}
+
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets(
-    'setup -> create -> like/rename/play -> cover -> dark',
+    'setup (error, retry) -> create -> queue -> like/rename/play -> cover -> dark',
     (t) async {
       final songPath =
           Platform.environment['E2E_SONG_JSON'] ?? 'reference/song.json';
@@ -146,7 +159,25 @@ void main() {
       t.platformDispatcher.platformBrightnessTestValue = Brightness.light;
       binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
 
-      Future<void> fillCreate() async {
+      Future<void> setDark(bool dark) async {
+        t.platformDispatcher.platformBrightnessTestValue =
+            dark ? Brightness.dark : Brightness.light;
+        await pumpFor(t, const Duration(milliseconds: 600));
+      }
+
+      /// Title field (C1 / E: Key('create.title') and Key('cover.title')); warns instead of failing while a track lags.
+      Future<void> typeTitle(String key, String title) async {
+        final f = find.byKey(Key(key));
+        if (f.evaluate().isEmpty) {
+          // ignore: avoid_print
+          print('WARN: Key("$key") not found, title not typed');
+          return;
+        }
+        await t.enterText(f, title);
+      }
+
+      Future<void> fillCreate(String title) async {
+        await typeTitle('create.title', title);
         await t.enterText(find.byKey(const Key('create.style')), style);
         await t.enterText(find.byKey(const Key('create.lyrics')), lyrics);
         await pumpFor(t, const Duration(milliseconds: 300));
@@ -160,10 +191,7 @@ void main() {
           find.byKey(const Key('generation.view')),
           'generation.view after Add to Queue',
         );
-        await pumpFor(
-          t,
-          const Duration(milliseconds: 1200),
-        ); // YUE2_FAKE_STEP_SECONDS=0.8 in test.sh: job lasts 2+ s
+        await pumpFor(t, const Duration(milliseconds: 1500)); // job lasts ~4 s at YUE2_FAKE_STEP_SECONDS=1.3
         await shot(t, name);
       }
 
@@ -171,13 +199,29 @@ void main() {
         await (app.main as dynamic)();
         await t.pump();
 
-        // 1-2. setup
+        // 1. setup: light, dark
         await waitFor(
           t,
           find.byKey(const Key('setup.install')),
           'setup.install button',
         );
+        final installLabel = _installButton().label;
+        await pumpFor(t, const Duration(milliseconds: 400));
         await shot(t, '01-setup');
+        await setDark(true);
+        await shot(t, '01b-setup-dark');
+        await setDark(false);
+
+        // 2. first attempt fails at the first step (YUE2_STUDIO_TEST_FAIL_STEP), shoot the error, Retry (B's hook: the step fails only once)
+        await t.tap(find.byKey(const Key('setup.install')));
+        await waitUntil(
+          t,
+          () => _installButton().enabled && _installButton().label != installLabel,
+          'setup error state (button back to Retry)',
+          timeout: const Duration(seconds: 60),
+        );
+        await pumpFor(t, const Duration(milliseconds: 400));
+        await shot(t, '02b-setup-error');
         await t.tap(find.byKey(const Key('setup.install')));
         await pumpFor(t, const Duration(seconds: 2));
         await shot(t, '02-setup-installing');
@@ -188,14 +232,20 @@ void main() {
           timeout: const Duration(seconds: 120),
         );
 
-        // 3-4. create -> generating
+        // 3. empty library
+        await tapKey(t, 'nav.library');
+        await pumpFor(t, const Duration(milliseconds: 600));
+        expect(_row, findsNothing);
+        await shot(t, '00-library-empty');
+
+        // 4. create (with a title) -> generating
         await tapKey(t, 'nav.create');
         await pumpFor(t, const Duration(milliseconds: 500));
-        await fillCreate();
+        await fillCreate('Neon Rain');
         await shot(t, '03-create');
         await generateAndShoot('04-generating');
 
-        // 5. library done
+        // 5. first song done: like, rename, play
         await tapKey(t, 'nav.library');
         await waitFor(t, _row, 'a library.item.<id> row');
         await waitUntil(
@@ -205,10 +255,8 @@ void main() {
           timeout: const Duration(seconds: 60),
         );
         await pumpFor(t, const Duration(milliseconds: 500));
-        await shot(t, '05-library');
         final id = _rowIds().single;
 
-        // like (state verified in meta.json)
         await tapKey(t, 'library.like', within: _rowOf(id));
         await waitUntil(
           t,
@@ -238,9 +286,7 @@ void main() {
         await t.testTextInput.receiveAction(TextInputAction.done);
         await t.pump(const Duration(milliseconds: 200));
         if (field.evaluate().isNotEmpty) {
-          await t.sendKeyEvent(
-            LogicalKeyboardKey.enter,
-          ); // field wired to the key, not to the input action
+          await t.sendKeyEvent(LogicalKeyboardKey.enter); // field wired to the key, not to the input action
           await t.pump(const Duration(milliseconds: 200));
         }
         await waitUntil(
@@ -250,24 +296,53 @@ void main() {
           timeout: const Duration(seconds: 5),
         );
         if (_meta(id) != null) expect(_meta(id)!['title'], renamed);
-        await shot(t, '06-library-liked-renamed');
 
-        // play: the player bar shows the title; toggle pauses then resumes
+        // play: the player bar shows the title; light + dark shots, toggle pauses then resumes
         await tapKey(t, 'library.play', within: _rowOf(id));
         await waitFor(t, find.byKey(const Key('player.bar')), 'player.bar');
         await pumpFor(t, const Duration(milliseconds: 600));
         expect(_textOf(find.byKey(const Key('player.title'))), renamed);
         await shot(t, '07-player');
+        await setDark(true);
+        await shot(t, '07b-player-dark');
+        await setDark(false);
         await tapKey(t, 'player.toggle');
         await tapKey(t, 'player.toggle');
         expect(find.byKey(const Key('player.bar')), findsOneWidget);
 
-        // Liked filter shows the song
+        // Liked filter shows the (renamed) song
         await tapKey(t, 'nav.liked');
         await waitFor(t, _rowOf(id), 'the liked song under nav.liked');
         expect(_row, findsOneWidget);
+        await pumpFor(t, const Duration(milliseconds: 400));
+        await shot(t, '06-library-liked');
 
-        // Cover: pick (env path) -> Free -> transcribe (fake) -> style/lyrics -> Add to Queue
+        // 6. three jobs queued back to back: one runs, two wait
+        for (var i = 1; i <= 3; i++) {
+          await tapKey(t, 'nav.create');
+          await fillCreate('Night Drive $i');
+          await t.tap(find.byKey(const Key('create.generate')));
+          await waitFor(t, find.byKey(const Key('generation.view')), 'generation.view (queued job $i)');
+        }
+        await tapKey(t, 'nav.library');
+        await waitUntil(
+          t,
+          () => _statuses().where((s) => s.contains('queued')).length == 2 && _statuses().any((s) => s.contains('generating')),
+          'library: one running, two queued',
+          timeout: const Duration(seconds: 5),
+        );
+        final st = _statuses();
+        // ignore: avoid_print
+        print('statuses while queued: $st');
+        await shot(t, '05-library-running-queued');
+        await waitUntil(
+          t,
+          () => _allDone(4),
+          'four rows done',
+          timeout: const Duration(seconds: 90),
+        );
+
+        // 7. Cover: pick (env path) -> Free -> transcribe (fake) -> title/style/lyrics -> shots -> Add to Queue
         await tapKey(t, 'nav.cover');
         await tapKey(t, 'cover.pick');
         await tapKey(t, 'cover.mode.free');
@@ -279,49 +354,56 @@ void main() {
           'cover.score filled by the fake transcription',
         );
         expect(_fieldText(score), contains('X:'));
+        await typeTitle('cover.title', 'Neon Rain (cover)');
         await t.enterText(find.byKey(const Key('cover.style')), style);
         await t.enterText(find.byKey(const Key('cover.lyrics')), lyrics);
         await pumpFor(t, const Duration(milliseconds: 300));
         await shot(t, '08-cover-filled');
+        await setDark(true);
+        await shot(t, '08b-cover-dark');
+        await setDark(false);
         await t.tap(find.byKey(const Key('cover.generate')));
         await pumpFor(t, const Duration(milliseconds: 500));
 
-        // the cover lands in the library as a second row, done
+        // the cover lands in the library as a fifth row, done
         await tapKey(t, 'nav.library');
         await waitUntil(
           t,
-          () => _rowIds().length == 2,
-          'two library rows (song + cover)',
+          () => _rowIds().length == 5,
+          'five library rows (4 songs + cover)',
           timeout: const Duration(seconds: 20),
         );
         await waitUntil(
           t,
-          () => _allDone(2),
-          'song and cover rows done',
+          () => _allDone(5),
+          'all five rows done',
           timeout: const Duration(seconds: 60),
         );
         await pumpFor(t, const Duration(milliseconds: 500));
         await shot(t, '09-library-with-cover');
-        final coverId = _rowIds().firstWhere((x) => x != id);
-        if (_meta(coverId) != null) expect(_meta(coverId)!['kind'], 'cover');
+        if (_dataDir != null) {
+          final kinds = [for (final x in _rowIds()) _meta(x)?['kind']];
+          expect(kinds.where((k) => k == 'cover').length, 1, reason: 'one cover row: $kinds');
+        }
 
-        // dark theme: Create, generating, Library
-        t.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
-        await pumpFor(t, const Duration(milliseconds: 600));
+        // 8. dark pass: Create, generating (sixth song), Library with six songs; then the same Library in light
+        await setDark(true);
         await tapKey(t, 'nav.create');
         await pumpFor(t, const Duration(milliseconds: 500));
-        await fillCreate();
+        await fillCreate('Glass Harbour');
         await shot(t, '10-create-dark');
         await generateAndShoot('11-generating-dark');
         await tapKey(t, 'nav.library');
         await waitUntil(
           t,
-          () => _allDone(3),
-          'three library rows done',
+          () => _allDone(6),
+          'six library rows done',
           timeout: const Duration(seconds: 60),
         );
         await pumpFor(t, const Duration(milliseconds: 500));
         await shot(t, '12-library-dark');
+        await setDark(false);
+        await shot(t, '05b-library-artwork');
       } catch (_) {
         try {
           await shot(t, '99-failure');
