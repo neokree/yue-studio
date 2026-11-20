@@ -66,7 +66,8 @@ Future<List<int>> childFootprintsKb() async {
   ]);
   return [
     for (final m in RegExp(
-      r'Footprint: ([\d.]+) (KB|MB|GB)',
+      // Per-process lines only ("name [pid]: 64-bit  Footprint: ..."): skip the "Summary Footprint" line, which is the sum.
+      r'\]: [^\n]*?Footprint: ([\d.]+) (KB|MB|GB)',
     ).allMatches(fp.stdout as String))
       (double.parse(m[1]!) *
               switch (m[2]!) {
