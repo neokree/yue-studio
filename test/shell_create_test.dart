@@ -81,6 +81,26 @@ void main() {
     expect(find.text('Nothing in the queue'), findsOneWidget);
   });
 
+  testWidgets('queue panel reopens the generation view from Library, inert when idle', (t) async {
+    await boot(t);
+    expect(find.byKey(const Key('queue.open')), findsNothing, reason: 'idle: not clickable');
+    s.queue.enqueueGenerate(style: 'pop', lyrics: '[Verse] Neon fades', cot: 'full');
+    await t.pump(const Duration(milliseconds: 500));
+    await t.tap(find.byKey(const Key('nav.library')));
+    await t.pump(const Duration(milliseconds: 600)); // a running job never settles
+    expect(find.byKey(const Key('generation.view')), findsNothing);
+
+    await t.tap(find.byKey(const Key('queue.open')));
+    await t.pump(const Duration(milliseconds: 600));
+    expect(s.nav.value, Section.create);
+    expect(find.byKey(const Key('generation.view')), findsOneWidget);
+    expect(find.bySemanticsLabel('Show generation progress'), findsOneWidget);
+
+    final job = engine.sent.whereType<GenerateRequest>().single;
+    engine.emit(ResultEvent(job: job.job, dir: job.out, audio: 'audio.wav', seed: 1, duration: 2));
+    await t.pump(const Duration(seconds: 5));
+  });
+
   testWidgets('Title field names the song; empty falls back to the first lyric line without its tag, then to Untitled', (t) async {
     await boot(t);
     expect(find.byKey(const Key('create.title')), findsOneWidget);

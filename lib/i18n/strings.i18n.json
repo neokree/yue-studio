@@ -212,6 +212,7 @@
     },
     "queue": {
       "idle": "Nothing in the queue",
+      "show": "Show generation progress",
       "starting": "Starting",
       "step": "$stage, step $done of $total",
       "queued": "$n queued",

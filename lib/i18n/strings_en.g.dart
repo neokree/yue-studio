@@ -777,6 +777,9 @@ class Translations$shell$queue$en {
 	/// en: 'Nothing in the queue'
 	String get idle => 'Nothing in the queue';
 
+	/// en: 'Show generation progress'
+	String get show => 'Show generation progress';
+
 	/// en: 'Starting'
 	String get starting => 'Starting';
 
@@ -1025,6 +1028,7 @@ extension on Translations {
 			'shell.nav.allSongs' => 'All Songs',
 			'shell.nav.liked' => 'Liked',
 			'shell.queue.idle' => 'Nothing in the queue',
+			'shell.queue.show' => 'Show generation progress',
 			'shell.queue.starting' => 'Starting',
 			'shell.queue.step' => ({required Object stage, required Object done, required Object total}) => '${stage}, step ${done} of ${total}',
 			'shell.queue.queued' => ({required Object n}) => '${n} queued',

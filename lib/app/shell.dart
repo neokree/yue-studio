@@ -10,6 +10,7 @@ import '../i18n/strings.g.dart';
 import '../library/library_screen.dart';
 import '../library/song.dart';
 import '../player/player_bar.dart';
+import '../queue/job_queue.dart';
 import '../queue/stage_label.dart';
 import '../theme/theme.dart';
 import '../theme/tokens.dart';
@@ -336,14 +337,27 @@ class _NavItemState extends State<_NavItem> {
 }
 
 /// Bottom of the sidebar: the running song, its stage and step, how many wait, a thin progress bar.
-class _QueueStatus extends StatelessWidget {
+/// While a song is generating the whole block is a button that reopens the generation page.
+class _QueueStatus extends StatefulWidget {
   const _QueueStatus({required this.services});
   final Services services;
 
   @override
+  State<_QueueStatus> createState() => _QueueStatusState();
+}
+
+class _QueueStatusState extends State<_QueueStatus> {
+  bool _hover = false, _focus = false;
+
+  void _open(Song song) {
+    widget.services.createDraft.watch(song.id);
+    widget.services.nav.value = Section.create;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final c = AppColors.of(context);
-    final q = services.queue;
+    final q = widget.services.queue;
     final small = TextStyle(
       fontSize: TypeSize.caption,
       color: c.textSecondary,
@@ -351,52 +365,85 @@ class _QueueStatus extends StatelessWidget {
     );
     return Container(
       key: const Key('queue.status'),
-      padding: const EdgeInsets.fromLTRB(18, 10, 18, 2),
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: c.divider)),
       ),
       child: ListenableBuilder(
         listenable: q,
         builder: (context, _) {
-          if (!q.busy) return Text(t.shell.queue.idle, style: small.copyWith(color: c.textTertiary));
-          final stage = q.stage;
-          final line = stage == null
-              ? t.shell.queue.starting
-              : q.stageTotal != null
-              ? t.shell.queue.step(stage: stageShort(stage), done: q.stageDone, total: q.stageTotal!)
-              : stageShort(stage);
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                q.running?.title ?? t.shell.stage.transcribe,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: TypeSize.caption, fontWeight: FontWeight.w600, color: c.text),
-              ),
-              Text(line, maxLines: 1, overflow: TextOverflow.ellipsis, style: small),
-              if (q.queuedCount > 0) Text(t.shell.queue.queued(n: q.queuedCount), style: small),
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(2),
-                child: q.transcribing
-                    ? LinearProgressIndicator(minHeight: 4, color: c.accent, backgroundColor: c.divider)
-                    : TweenAnimationBuilder<double>(
-                        tween: Tween(end: q.progress),
-                        duration: Motion.of(context, Motion.screen),
-                        curve: Motion.curve,
-                        builder: (_, v, _) => LinearProgressIndicator(
-                          value: v,
-                          minHeight: 4,
-                          color: c.accent,
-                          backgroundColor: c.divider,
-                        ),
-                      ),
-              ),
-            ],
+          // A transcription has no song to show: only a running generation is clickable.
+          final song = q.running;
+          final content = !q.busy ? _idle(small, c) : _busy(q, small, c, context);
+          final box = AnimatedContainer(
+            duration: Motion.of(context, Motion.control),
+            curve: Motion.curve,
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 2),
+            decoration: BoxDecoration(
+              color: song != null && _hover ? c.accentSoft : Colors.transparent,
+              borderRadius: BorderRadius.circular(Radii.artwork),
+              border: song != null && _focus ? Border.fromBorderSide(focusRing(c)) : null,
+            ),
+            child: content,
+          );
+          if (song == null) return box;
+          return Semantics(
+            button: true,
+            label: t.shell.queue.show,
+            excludeSemantics: true,
+            child: FocusableActionDetector(
+              key: const Key('queue.open'),
+              mouseCursor: SystemMouseCursors.click,
+              onShowHoverHighlight: (v) => setState(() => _hover = v),
+              onShowFocusHighlight: (v) => setState(() => _focus = v),
+              actions: {ActivateIntent: CallbackAction<ActivateIntent>(onInvoke: (_) => _open(song))},
+              child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: () => _open(song), child: box),
+            ),
           );
         },
       ),
+    );
+  }
+
+  Widget _idle(TextStyle small, AppColors c) =>
+      Text(t.shell.queue.idle, style: small.copyWith(color: c.textTertiary));
+
+  Widget _busy(JobQueue q, TextStyle small, AppColors c, BuildContext context) {
+    final stage = q.stage;
+    final line = stage == null
+        ? t.shell.queue.starting
+        : q.stageTotal != null
+        ? t.shell.queue.step(stage: stageShort(stage), done: q.stageDone, total: q.stageTotal!)
+        : stageShort(stage);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          q.running?.title ?? t.shell.stage.transcribe,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: TypeSize.caption, fontWeight: FontWeight.w600, color: c.text),
+        ),
+        Text(line, maxLines: 1, overflow: TextOverflow.ellipsis, style: small),
+        if (q.queuedCount > 0) Text(t.shell.queue.queued(n: q.queuedCount), style: small),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(2),
+          child: q.transcribing
+              ? LinearProgressIndicator(minHeight: 4, color: c.accent, backgroundColor: c.divider)
+              : TweenAnimationBuilder<double>(
+                  tween: Tween(end: q.progress),
+                  duration: Motion.of(context, Motion.screen),
+                  curve: Motion.curve,
+                  builder: (_, v, _) => LinearProgressIndicator(
+                    value: v,
+                    minHeight: 4,
+                    color: c.accent,
+                    backgroundColor: c.divider,
+                  ),
+                ),
+        ),
+      ],
     );
   }
 }
