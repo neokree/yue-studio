@@ -5,6 +5,42 @@ import 'tokens.dart';
 /// Accent focus ring: 3 px, accent at 55% (design/DESIGN.md "keyboard focus rings in accent").
 BorderSide focusRing(AppColors c) => BorderSide(color: c.accent.withValues(alpha: .55), width: 3);
 
+/// Text-field outline that paints the macOS-style focus ring itself: when [ring] is set, a [focusRing] wide band
+/// outside the box in accent at 55%, so every TextField looks the same focused (Create, Cover, score, rename, seed).
+class RingBorder extends OutlineInputBorder {
+  const RingBorder({super.borderSide, super.borderRadius, this.ring});
+  final Color? ring;
+
+  @override
+  OutlineInputBorder copyWith({BorderSide? borderSide, BorderRadius? borderRadius, double? gapPadding}) =>
+      RingBorder(borderSide: borderSide ?? this.borderSide, borderRadius: borderRadius ?? this.borderRadius, ring: ring);
+
+  @override
+  RingBorder scale(double t) => RingBorder(borderSide: borderSide.scale(t), borderRadius: borderRadius * t, ring: ring);
+
+  // The default lerp would build a plain OutlineInputBorder and drop the ring: snap instead.
+  @override
+  ShapeBorder? lerpFrom(ShapeBorder? a, double t) => null;
+  @override
+  ShapeBorder? lerpTo(ShapeBorder? b, double t) => null;
+
+  @override
+  void paint(Canvas canvas, Rect rect, {double? gapStart, double gapExtent = 0.0, double gapPercentage = 0.0, TextDirection? textDirection}) {
+    super.paint(canvas, rect, gapStart: gapStart, gapExtent: gapExtent, gapPercentage: gapPercentage, textDirection: textDirection);
+    final c = ring;
+    if (c == null) return;
+    final inner = borderRadius.resolve(textDirection).toRRect(rect);
+    canvas.drawDRRect(inner.inflate(focusRing(AppColors.light).width), inner, Paint()..color = c);
+  }
+}
+
+/// The one text-field border. [focused] adds the ring and keeps the hairline.
+OutlineInputBorder fieldBorder(AppColors c, {BorderSide? side, bool focused = false, double radius = Radii.field}) => RingBorder(
+  borderRadius: BorderRadius.circular(radius),
+  borderSide: side ?? BorderSide(color: c.divider),
+  ring: focused ? focusRing(c).color : null,
+);
+
 ThemeData buildTheme(Brightness b) {
   final c = b == Brightness.dark ? AppColors.dark : AppColors.light;
   final base = ThemeData(
@@ -30,10 +66,7 @@ ThemeData buildTheme(Brightness b) {
   const tabular = [FontFeature.tabularFigures()];
   RoundedRectangleBorder shape(double r, [BorderSide side = BorderSide.none]) =>
       RoundedRectangleBorder(borderRadius: BorderRadius.circular(r), side: side);
-  OutlineInputBorder border(Color color, double width) => OutlineInputBorder(
-    borderRadius: BorderRadius.circular(Radii.field),
-    borderSide: BorderSide(color: color, width: width),
-  );
+  OutlineInputBorder border(Color color) => fieldBorder(c, side: BorderSide(color: color));
   final labelStyle = TextStyle(fontSize: TypeSize.body, fontWeight: FontWeight.w600, color: c.text);
 
   return base.copyWith(
@@ -66,10 +99,10 @@ ThemeData buildTheme(Brightness b) {
       isDense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       hintStyle: TextStyle(color: c.placeholder),
-      border: border(c.divider, 1),
-      enabledBorder: border(c.divider, 1),
-      focusedBorder: border(c.accent, 1.5),
-      errorBorder: border(c.error, 1),
+      border: border(c.divider),
+      enabledBorder: border(c.divider),
+      focusedBorder: fieldBorder(c, focused: true),
+      errorBorder: border(c.error),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: ButtonStyle(
@@ -92,14 +125,14 @@ ThemeData buildTheme(Brightness b) {
     // Quiet bordered button for everything that is not the one primary action.
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: ButtonStyle(
-        backgroundColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.pressed) ? c.divider : c.field),
+        backgroundColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.pressed) ? c.divider : c.quiet),
         foregroundColor: WidgetStateProperty.resolveWith(
           (s) => s.contains(WidgetState.disabled) ? c.textTertiary : c.text,
         ),
         overlayColor: const WidgetStatePropertyAll(Colors.transparent),
         shape: WidgetStatePropertyAll(shape(Radii.button)),
         side: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.focused) ? focusRing(c) : BorderSide(color: c.divider),
+          (s) => s.contains(WidgetState.focused) ? focusRing(c) : BorderSide(color: c.quietBorder),
         ),
         padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 18, vertical: 8)),
         textStyle: const WidgetStatePropertyAll(TextStyle(fontSize: TypeSize.body, fontWeight: FontWeight.w600)),

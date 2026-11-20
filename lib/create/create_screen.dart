@@ -6,7 +6,6 @@ import '../generation/generation_view.dart';
 import '../i18n/strings.g.dart';
 import '../library/song.dart';
 import '../queue/stage_label.dart';
-import '../theme/focus_ring.dart';
 import '../theme/segmented.dart';
 import '../theme/tokens.dart';
 import 'create_draft.dart';
@@ -14,11 +13,22 @@ import 'seed_field.dart';
 
 /// Create (design/DESIGN.md screen 2). After "Add to Queue" the whole pane shows the generation (screen 3) until the
 /// job ends or the user clicks Create in the sidebar, which returns to the form to queue more.
-class CreateScreen extends StatelessWidget {
+class CreateScreen extends StatefulWidget {
   const CreateScreen({super.key, required this.services});
   final Services services;
 
+  @override
+  State<CreateScreen> createState() => _CreateScreenState();
+}
+
+class _CreateScreenState extends State<CreateScreen> {
+  Services get services => widget.services;
   CreateDraft get _draft => services.createDraft;
+
+  /// Bumped every time the pane flips between form and generation, so each child of the AnimatedSwitcher has a key of
+  /// its own (a form, generation, form flip inside one transition used to throw "Duplicate keys").
+  bool? _wasGeneration;
+  int _epoch = 0;
 
   /// The generation replaces the form only while the watched song is still alive (queued, running or just done).
   bool _showGeneration() {
@@ -40,19 +50,29 @@ class CreateScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: Listenable.merge([_draft, services.library]),
-    builder: (context, _) => AnimatedSwitcher(
-      duration: Motion.of(context, Motion.screen),
-      switchInCurve: Motion.curve,
-      switchOutCurve: Motion.curve,
-      child: _showGeneration()
-          ? GenerationView(
-              key: const ValueKey('generation'),
-              queue: services.queue,
-              library: services.library,
-              onFinished: _finished,
-            )
-          : _Form(key: const ValueKey('form'), services: services),
-    ),
+    builder: (context, _) {
+      final generation = _showGeneration();
+      if (generation != _wasGeneration) {
+        _wasGeneration = generation;
+        _epoch++;
+      }
+      return AnimatedSwitcher(
+        duration: Motion.of(context, Motion.screen),
+        // The outgoing pane just disappears under the incoming fade (as the sidebar panes do), so a quick
+        // form, generation, form never leaves two live forms (two Key('create.style')) in the tree.
+        reverseDuration: Duration.zero,
+        switchInCurve: Motion.curve,
+        switchOutCurve: Motion.curve,
+        child: generation
+            ? GenerationView(
+                key: ValueKey('generation.$_epoch'),
+                queue: services.queue,
+                library: services.library,
+                onFinished: _finished,
+              )
+            : _Form(key: ValueKey('form.$_epoch'), services: services),
+      );
+    },
   );
 }
 
@@ -88,40 +108,34 @@ class _Form extends StatelessWidget {
           Text(t.create.title, style: theme.textTheme.titleLarge),
           const SizedBox(height: Space.md),
           _FieldLabel(t.create.titleLabel, t.create.titleHint),
-          FocusRing(
-            child: TextField(key: const Key('create.title'), controller: d.title, style: _value),
-          ),
+          TextField(key: const Key('create.title'), controller: d.title, style: _value),
           const SizedBox(height: Space.md),
           _FieldLabel(t.create.style, t.create.styleHint),
-          FocusRing(
-            child: TextField(
-              key: const Key('create.style'),
-              controller: d.style,
-              style: _value,
-              minLines: 2,
-              maxLines: 4,
-              decoration: InputDecoration(
-                hintText: t.create.stylePlaceholder,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              ),
+          TextField(
+            key: const Key('create.style'),
+            controller: d.style,
+            style: _value,
+            minLines: 2,
+            maxLines: 4,
+            decoration: InputDecoration(
+              hintText: t.create.stylePlaceholder,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             ),
           ),
           const SizedBox(height: Space.md),
           _FieldLabel(t.create.lyrics, t.create.lyricsHint),
           Expanded(
-            child: FocusRing(
-              child: TextField(
-                key: const Key('create.lyrics'),
-                controller: d.lyrics,
-                style: _value,
-                expands: true,
-                minLines: null,
-                maxLines: null,
-                textAlignVertical: TextAlignVertical.top,
-                decoration: InputDecoration(
-                  hintText: t.create.lyricsPlaceholder,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                ),
+            child: TextField(
+              key: const Key('create.lyrics'),
+              controller: d.lyrics,
+              style: _value,
+              expands: true,
+              minLines: null,
+              maxLines: null,
+              textAlignVertical: TextAlignVertical.top,
+              decoration: InputDecoration(
+                hintText: t.create.lyricsPlaceholder,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
             ),
           ),
@@ -137,7 +151,7 @@ class _Form extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(t.create.plan, style: theme.textTheme.labelLarge),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   Segmented<CotMode>(
                     key: const Key('create.cot'),
                     segments: [
@@ -148,7 +162,7 @@ class _Form extends StatelessWidget {
                     selected: d.cot,
                     onChanged: d.setCot,
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 8),
                   SeedField(key: const Key('create.seed'), controller: d.seed),
                 ],
               );
@@ -173,7 +187,7 @@ class _Form extends StatelessWidget {
                 ],
               );
               return LayoutBuilder(
-                builder: (context, box) => box.maxWidth >= 680
+                builder: (context, box) => box.maxWidth >= 710
                     ? Row(
                         children: [
                           left,

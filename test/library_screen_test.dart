@@ -96,12 +96,12 @@ void main() {
     expect(find.text('warm piano pop'), findsNWidgets(3)); // the failed row shows its error instead
   });
 
-  testWidgets('live rows: no like, an estimate in Length; table starts at the 28 px screen edge; now-playing badge, no fill', (t) async {
+  testWidgets('live rows: no like, a dash in Length; table starts at the 28 px screen edge; now-playing badge, no fill', (t) async {
     await pump(t);
     expect(inRow(queued, const Key('library.like')), findsNothing);
     expect(inRow(generating, const Key('library.like')), findsNothing);
     expect(inRow(done, const Key('library.like')), findsOneWidget);
-    expect(t.widget<Text>(inRow(queued, const Key('library.eta'))).data, startsWith('About '));
+    expect(t.widget<Text>(inRow(queued, const Key('library.eta'))).data, '—');
     // Artwork column and the Library title share the 28 px edge.
     expect(t.getTopLeft(find.byType(Image).evaluate().isEmpty ? find.byKey(const Key('library.title')).first : find.byType(Image).first).dx, greaterThanOrEqualTo(28));
     expect(t.getTopLeft(find.text('Title')).dx, 28);

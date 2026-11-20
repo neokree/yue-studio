@@ -339,8 +339,6 @@ void main() {
           await fillCreate('Night Drive $i');
           await t.tap(find.byKey(const Key('create.generate')));
           await waitFor(t, find.byKey(const Key('generation.view')), 'generation.view (queued job $i)');
-          // C1's AnimatedSwitcher (create_screen.dart) throws "Duplicate keys 'form'" when form -> generation -> form flips within its 450 ms transition.
-          await pumpFor(t, const Duration(milliseconds: 470));
         }
         await tapKey(t, 'nav.library');
         await waitUntil(

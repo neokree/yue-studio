@@ -12,6 +12,8 @@ class AppColors {
     required this.textTertiary,
     required this.placeholder,
     required this.divider,
+    required this.quiet,
+    required this.quietBorder,
     required this.accent,
     required this.accentPressed,
     required this.accentSoft,
@@ -40,6 +42,9 @@ class AppColors {
 
   /// Hairlines (DESIGN "separator").
   final Color divider;
+
+  /// Quiet (outlined) buttons: fill and border. Light = field + hairline; dark = a step lighter than field, white 18% border.
+  final Color quiet, quietBorder;
   final Color accent;
   final Color accentPressed;
 
@@ -63,6 +68,8 @@ class AppColors {
     textTertiary: Color(0xFF77777C),
     placeholder: Color(0xFF6C6C71),
     divider: Color(0x17000000), // black 9%
+    quiet: Color(0xFFF4F3F1),
+    quietBorder: Color(0x17000000),
     accent: Color(0xFFA4503A),
     accentPressed: Color(0xFF8C4230),
     accentSoft: Color(0x1FA4503A), // 12%
@@ -81,6 +88,8 @@ class AppColors {
     textTertiary: Color(0xFF98989E),
     placeholder: Color(0xFF98989E),
     divider: Color(0x1AFFFFFF), // white 10%
+    quiet: Color(0xFF38383C),
+    quietBorder: Color(0x2EFFFFFF), // white 18%
     accent: Color(0xFFD97C62),
     accentPressed: Color(0xFFE8927A),
     accentSoft: Color(0x2ED97C62), // 18%

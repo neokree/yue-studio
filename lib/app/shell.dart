@@ -353,8 +353,8 @@ class _QueueStatus extends StatelessWidget {
           final line = stage == null
               ? t.shell.queue.starting
               : q.stageTotal != null
-              ? t.shell.queue.step(stage: stageLabel(stage), done: q.stageDone, total: q.stageTotal!)
-              : stageLabel(stage);
+              ? t.shell.queue.step(stage: stageShort(stage), done: q.stageDone, total: q.stageTotal!)
+              : stageShort(stage);
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -364,7 +364,7 @@ class _QueueStatus extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: TypeSize.caption, fontWeight: FontWeight.w600, color: c.text),
               ),
-              Text(line, maxLines: 2, overflow: TextOverflow.ellipsis, style: small),
+              Text(line, maxLines: 1, overflow: TextOverflow.ellipsis, style: small),
               if (q.queuedCount > 0) Text(t.shell.queue.queued(n: q.queuedCount), style: small),
               const SizedBox(height: 8),
               ClipRRect(

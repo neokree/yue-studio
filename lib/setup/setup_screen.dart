@@ -245,7 +245,7 @@ class _StepRow extends StatelessWidget {
         children: [
           Row(
             children: [
-              SizedBox(width: 22, child: Align(alignment: Alignment.centerLeft, child: _Dot(status: st.status, accent: c.accent, error: c.error, idle: c.textTertiary))),
+              SizedBox(width: 22, child: Align(alignment: Alignment.centerLeft, child: _Dot(status: st.status, accent: c.accent, error: c.error, idle: c.textTertiary, onAccent: c.onAccent))),
               const SizedBox(width: 10),
               Expanded(child: Text(step.label, style: _t(13, c.text, weight: running ? FontWeight.w600 : FontWeight.w400))),
               SizedBox(
@@ -320,9 +320,9 @@ class _Bar extends StatelessWidget {
 
 /// 16 px state dot: empty ring (pending), faint ring with a spinning accent arc (running), filled (done), error ring (failed).
 class _Dot extends StatefulWidget {
-  const _Dot({required this.status, required this.accent, required this.error, required this.idle});
+  const _Dot({required this.status, required this.accent, required this.error, required this.idle, required this.onAccent});
   final StepStatus status;
-  final Color accent, error, idle;
+  final Color accent, error, idle, onAccent;
 
   @override
   State<_Dot> createState() => _DotState();
@@ -365,16 +365,16 @@ class _DotState extends State<_Dot> with SingleTickerProviderStateMixin {
           animation: _spin,
           builder: (_, _) => CustomPaint(
             size: const Size.square(16),
-            painter: _DotPainter(widget.status, widget.accent, widget.error, widget.idle, _spin.value),
+            painter: _DotPainter(widget.status, widget.accent, widget.error, widget.idle, widget.onAccent, _spin.value),
           ),
         ),
       );
 }
 
 class _DotPainter extends CustomPainter {
-  _DotPainter(this.status, this.accent, this.error, this.idle, this.turn);
+  _DotPainter(this.status, this.accent, this.error, this.idle, this.onAccent, this.turn);
   final StepStatus status;
-  final Color accent, error, idle;
+  final Color accent, error, idle, onAccent;
   final double turn;
 
   @override
@@ -391,6 +391,20 @@ class _DotPainter extends CustomPainter {
         canvas.drawCircle(center, r, stroke..color = idle);
       case StepStatus.done:
         canvas.drawCircle(center, size.width / 2, Paint()..color = accent);
+        final w = size.width;
+        canvas.drawPath(
+          Path()
+            ..moveTo(w * .28, w * .52)
+            ..lineTo(w * .44, w * .67)
+            ..lineTo(w * .73, w * .35),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.6
+            ..strokeCap = StrokeCap.round
+            ..strokeJoin = StrokeJoin.round
+            ..isAntiAlias = true
+            ..color = onAccent,
+        );
       case StepStatus.failed:
         canvas.drawCircle(center, r, stroke..color = error);
       case StepStatus.running:
@@ -401,5 +415,5 @@ class _DotPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_DotPainter o) => o.status != status || o.turn != turn || o.accent != accent || o.idle != idle || o.error != error;
+  bool shouldRepaint(_DotPainter o) => o.status != status || o.turn != turn || o.accent != accent || o.idle != idle || o.error != error || o.onAccent != onAccent;
 }

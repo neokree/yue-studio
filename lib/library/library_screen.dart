@@ -70,28 +70,20 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   String _status(Song s) => switch (s.status) {
         SongStatus.queued => t.library.status.queued,
-        SongStatus.generating => widget.queue.running?.id == s.id && widget.queue.stage != null
-            ? '${t.library.status.generating}: ${stageLabel(widget.queue.stage!)}'
-            : t.library.status.generating,
+        SongStatus.generating => t.library.status.generating,
         SongStatus.done => t.library.status.done,
         SongStatus.failed => t.library.status.failed,
       };
 
   bool _isRunning(Song s) => s.status == SongStatus.generating && widget.queue.running?.id == s.id;
 
-  /// "Step 5 of 32" under the status of the running row.
-  String? _step(Song s) => _isRunning(s) && widget.queue.stage != null && widget.queue.stageTotal != null
-      ? t.library.step(done: widget.queue.stageDone, total: widget.queue.stageTotal!)
-      : null;
-
-  /// Length cell of a live row: time left for the running song, the estimate for a queued one.
-  String? _eta(Song s) {
-    if (_isRunning(s)) {
-      final r = widget.queue.remaining;
-      return r == null ? null : t.library.timeLeft(time: formatEta(r));
-    }
-    if (s.status == SongStatus.queued) return t.library.eta(time: formatEta(widget.queue.estimator.estimate(lyrics: s.request.lyrics)));
-    return null;
+  /// "Sound, step 3 of 5" on its own line under the status of the running row (the sidebar uses the same short form).
+  String? _step(Song s) {
+    final q = widget.queue, stage = q.stage;
+    if (!_isRunning(s) || stage == null) return null;
+    return q.stageTotal == null
+        ? stageShort(stage)
+        : t.shell.queue.step(stage: stageShort(stage), done: q.stageDone, total: q.stageTotal!);
   }
 
   /// Running first, then queued in run order, then everything else newest first.
@@ -244,7 +236,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
                             song: s,
                             status: _status(s),
                             step: _step(s),
-                            eta: _eta(s),
                             progress: _isRunning(s) ? widget.queue.progress : null,
                             isCurrent: current,
                             playing: current && widget.player.playing,
@@ -327,7 +318,6 @@ class _SongRow extends StatefulWidget {
     required this.song,
     required this.status,
     this.step,
-    this.eta,
     this.progress,
     required this.isCurrent,
     required this.playing,
@@ -344,8 +334,8 @@ class _SongRow extends StatefulWidget {
   final Song song;
   final String status;
 
-  /// Live rows only: "Step 5 of 32", the time left / estimate, and 0..1 progress of the running song.
-  final String? step, eta;
+  /// Live rows only: "Sound, step 3 of 5" and 0..1 progress of the running song.
+  final String? step;
   final double? progress;
   final bool isCurrent, playing, editing;
   final VoidCallback onPlay, onLike, onRenameStart, onDelete;
@@ -480,8 +470,8 @@ class _SongRowState extends State<_SongRow> {
                     child: Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: live
-                          // Time left (running) or the estimate (queued), so the column never reads as broken.
-                          ? Text(w.eta ?? '', key: const Key('library.eta'), maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.right, style: TextStyle(fontSize: TypeSize.caption, color: c.textTertiary, fontFeatures: tab))
+                          // No length yet: a dash, so the column never reads as broken or truncated (time left lives in the sidebar and the generation view).
+                          ? Text('—', key: const Key('library.eta'), maxLines: 1, textAlign: TextAlign.right, style: TextStyle(fontSize: TypeSize.body, color: c.textTertiary))
                           : Text(s.duration == null ? '' : formatClock(Duration(milliseconds: (s.duration! * 1000).round())), maxLines: 1, textAlign: TextAlign.right, style: TextStyle(fontSize: TypeSize.body, color: c.textSecondary, fontFeatures: tab)),
                     ),
                   ),

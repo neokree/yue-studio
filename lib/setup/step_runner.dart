@@ -120,16 +120,19 @@ class ProcessStepRunner implements StepRunner {
     }
   }
 
+  /// Bytes on disk under [dirs]: one `du -sk` for all of them (no Dart-side walk of the thousands of cache files).
   Future<int> _size(List<String> dirs) async {
-    var sum = 0;
-    for (final d in dirs) {
-      try {
-        await for (final e in Directory(d).list(recursive: true, followLinks: false)) {
-          if (e is File) sum += await e.length().catchError((_) => 0);
-        }
-      } catch (_) {} // folder missing yet, or a file vanished mid-scan
+    try {
+      final r = await Process.run('du', ['-sk', ...dirs]);
+      var kb = 0;
+      // A folder that does not exist yet makes du exit 1 but it still prints the others.
+      for (final l in const LineSplitter().convert(r.stdout as String)) {
+        kb += int.tryParse(l.split(RegExp(r'\s'))[0]) ?? 0;
+      }
+      return kb * 1024;
+    } on ProcessException {
+      return 0;
     }
-    return sum;
   }
 
   /// [json]: stdout lines are fetch.py events; everything else is shown as a detail line.

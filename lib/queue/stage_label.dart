@@ -10,6 +10,15 @@ String stageLabel(String stage) => switch (stage) {
       _ => stage,
     };
 
+/// One-word stage for tight places (sidebar, library row): "Sound", used as "Sound, step 3 of 5".
+String stageShort(String stage) => switch (stage) {
+      'abc' => t.generation.stageScore,
+      'semantic' => t.generation.stageMelody,
+      'nar' => t.generation.stageSound,
+      'vae' => t.generation.stageMaster,
+      _ => stageLabel(stage),
+    };
+
 /// "2 min 40 s", rounded to 10 s (to 1 s under a minute is false precision for an estimate).
 String formatEta(Duration d) {
   final total = (d.inSeconds / 10).round() * 10;
