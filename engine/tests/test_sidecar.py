@@ -270,36 +270,23 @@ def test_real_mode_transcribe_without_install_errors(tmp_path):
         p.wait()
 
 
-# ---------------------------------------------------------------- yue2 0.1.6 contract (fake pipeline)
+# ---------------------------------------------------------------- yue2 @ 1116bea contract (fake pipeline)
 
 class FakePipeline:
-    """Same __call__ signature and _status usage as yue2 0.1.6: no on_progress kwarg, unknown kwargs go to SongRequest."""
-    progress = False
-    seen = None
-
-    def _status(self, label, *, total=None, unit=None):  # replaced by Yue2Backend.attach
-        raise AssertionError("attach() must replace _status")
+    """Same __call__ signature as YuE2Pipeline at 1116bea: cancelled(), on_token(phase, token), on_progress(stage, done, total)."""
 
     def __call__(self, style=None, lyrics=None, *, tags=None, abc_sampling=None, semantic_sampling=None,
-                 cancelled=None, on_token=None, **kwargs):
+                 cancelled=None, on_token=None, on_progress=None, **kwargs):
         assert set(kwargs) <= {"cot", "seed", "abc", "cfg_scale", "id"}, kwargs  # SongRequest(**kwargs)
-        assert self.progress is True and callable(cancelled) and not isinstance(cancelled, threading.Event)
-        with self._status("Loading model"):
-            pass
-        with self._status("Planning score", unit="tokens") as s:
-            for _ in range(60):
-                s.advance()
-        with self._status("Generating song", unit="tokens") as s:
-            for _ in range(50):
-                s.advance()
-        with self._status("Synthesizing audio", unit="steps") as s:
-            for i in range(1, 4):
-                s.update(i, total=3)
-        with self._status("Loading audio decoder"):  # runs after nar: must not move progress back to load
-            pass
-        with self._status("Decoding audio", total=2, unit="chunks") as s:
-            s.update(1, total=2)
-            s.update(2, total=2)
+        assert callable(cancelled) and not isinstance(cancelled, threading.Event)
+        for _ in range(60):
+            on_token("abc", 1)
+        for _ in range(50):
+            on_token("semantic", 1)
+        for i in range(1, 4):
+            on_progress("nar", i, 3)
+        on_progress("vae", 1, 2)
+        on_progress("vae", 2, 2)
         if cancelled():
             raise InterruptedError("cancelled")
 
@@ -314,29 +301,26 @@ class FakePipeline:
         return Song()
 
 
-def test_yue2_backend_reports_progress_through_pipeline_status(tmp_path, monkeypatch):
+def test_yue2_backend_reports_progress_through_pipeline_callbacks(tmp_path, monkeypatch):
     monkeypatch.delenv("YUE2_STUDIO_MANIFEST", raising=False)
     b = backends.Yue2Backend(tmp_path)
     b.pipe = FakePipeline()
-    b.attach(b.pipe)
     events = []
     r = b.generate({"out": str(tmp_path / "o"), "seed": 5, "cot": "full", "style": "s", "lyrics": "l"},
                    lambda *a: events.append(a), threading.Event())
-    stages = list(dict.fromkeys(e[0] for e in events))
-    assert stages == ["load", "abc", "semantic", "nar", "vae"]  # no load event after nar
+    assert list(dict.fromkeys(e[0] for e in events)) == ["abc", "semantic", "nar", "vae"]  # pipe preloaded: no load event
     assert [e[1:] for e in events if e[0] == "abc"] == [(0, None), (25, None), (50, None)]
-    assert [e[1:] for e in events if e[0] == "nar"] == [(0, None), (1, 3), (2, 3), (3, 3)]
-    assert [e[1:] for e in events if e[0] == "vae"] == [(0, 2), (1, 2), (2, 2)]
+    assert [e[1:] for e in events if e[0] == "semantic"] == [(0, None), (25, None), (50, None)]
+    assert [e[1:] for e in events if e[0] == "nar"] == [(1, 3), (2, 3), (3, 3)]
+    assert [e[1:] for e in events if e[0] == "vae"] == [(1, 2), (2, 2)]
     assert r["audio"] == "audio.flac" and r["duration"] == 2.0 and (tmp_path / "o" / "audio.flac").exists()
-    t = r["timings"]
-    assert (t["abc"], t["semantic"], t["nar"]) == (1.5, 2.5, 3.5) and 0.49 < t["vae"] <= 0.5 and t["load"] >= 0
+    assert r["timings"] == {"load": 0.0, "abc": 1.5, "semantic": 2.5, "nar": 3.5, "vae": 0.5}
 
 
 def test_yue2_backend_cancel_maps_to_cancelled(tmp_path, monkeypatch):
     monkeypatch.delenv("YUE2_STUDIO_MANIFEST", raising=False)
     b = backends.Yue2Backend(tmp_path)
     b.pipe = FakePipeline()
-    b.attach(b.pipe)
     ev = threading.Event()
     ev.set()
     with pytest.raises(backends.Cancelled):

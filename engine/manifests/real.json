@@ -10,13 +10,13 @@
       "bytes": 17000000
     },
     {
-      "id": "venv-yue2",
+      "id": "venv-yue2-1116bea",
       "kind": "venv",
       "label": "Engine environment (PyTorch, YuE2)",
       "name": "yue2",
       "python": "3.12",
       "packages": [
-        "https://github.com/multimodal-art-projection/YuE/releases/download/yue2-v0.1.6/yue2_infer-0.1.6-py3-none-any.whl"
+        "yue2-infer @ https://github.com/multimodal-art-projection/YuE/archive/1116bea76032bee5668e5f097294d082fa0b84f0.zip"
       ],
       "bytes": 1700000000
     },

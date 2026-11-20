@@ -1,6 +1,7 @@
 // Real engine, headless, macOS only. Run through tool/real_engine.sh (it sets the env).
 // Real setup (engine/manifests/real.json, bundled uv) -> one real generation (reference/song.json, via ProcessEngine)
-// -> one real Free transcription of that audio -> one cover generation from that ABC. Downloads about 11 GB.
+// -> a second generation (cot=melody, no score) -> one real Free transcription -> one cover generation from that ABC.
+// Ceilings: footprint of the largest engine process (sidecar or SheetSage2, every 2 s) <= 16 GB; generation wall <= 4 x audio seconds + 90 s. Downloads about 11 GB.
 // Env: REAL_ENGINE_DATA (data dir), REAL_ENGINE_LOG (log file).
 @Timeout(Duration(hours: 3))
 library;
@@ -39,23 +40,100 @@ Future<T> timed<T>(String step, Future<T> Function() body) async {
   }
 }
 
-/// Sends [req], returns the result event for [job]; logs progress (one line per stage change or 20 s).
-Future<ResultEvent> runJob(
+/// Footprint (KB) of each child process of this test (the sidecar; SheetSage2 while it transcribes), as macOS "footprint"
+/// reports it: it includes the GPU (IOAccelerator) buffers that MPS keeps the weights in, which `ps rss` does not see (1 GB vs 10 GB).
+Future<List<int>> childFootprintsKb() async {
+  final out = await Process.run('ps', ['-axo', 'pid=,ppid=']);
+  final parent = <int, int>{};
+  for (final l in (out.stdout as String).split('\n')) {
+    final f = l.trim().split(RegExp(r'\s+'));
+    if (f.length == 2) parent[int.parse(f[0])] = int.parse(f[1]);
+  }
+  final tree = <int>{pid};
+  for (var grew = true; grew;) {
+    grew = false;
+    for (final e in parent.entries) {
+      if (tree.contains(e.value) && tree.add(e.key)) grew = true;
+    }
+  }
+  tree.remove(pid);
+  if (tree.isEmpty) return [];
+  final fp = await Process.run('footprint', [
+    for (final q in tree) ...['-p', '$q'],
+  ]);
+  return [
+    for (final m in RegExp(
+      r'Footprint: ([\d.]+) (KB|MB|GB)',
+    ).allMatches(fp.stdout as String))
+      (double.parse(m[1]!) *
+              switch (m[2]!) {
+                'KB' => 1,
+                'MB' => 1024,
+                _ => 1048576,
+              })
+          .round(),
+  ];
+}
+
+/// Hard ceilings, so a slow or heavy engine cannot pass silently (the old release wheel took 16+ min and 52 GB).
+const maxRssGb = 16.0;
+const wallPerAudioSecond = 4;
+const loadAllowance = Duration(seconds: 90);
+final _violations = <String>[];
+
+class JobRun {
+  JobRun(
+    this.result,
+    this.wall,
+    this.peakGb,
+    this.stageSeconds,
+    this.peakTotalGb,
+  );
+  final ResultEvent result;
+  final Duration wall;
+  final double peakGb,
+      peakTotalGb; // largest single process; all children summed
+  final Map<String, double> stageSeconds;
+}
+
+/// Sends [req], returns the result event for [job] with wall time, peak memory (footprint, sampled every 2 s) and per-stage seconds
+/// (first progress event of a stage to the first of the next). Logs progress (one line per stage change or 20 s).
+/// Aborts the job as soon as the memory ceiling is crossed.
+Future<JobRun> runJob(
   ProcessEngine engine,
   EngineRequest req,
   String job, {
-  Duration timeout = const Duration(minutes: 40),
+  Duration timeout = const Duration(minutes: 15),
 }) async {
   final done = Completer<ResultEvent>();
   var lastStage = '';
   var lastLog = DateTime.fromMillisecondsSinceEpoch(0);
+  final sw = Stopwatch()..start();
+  final stageAt = <String, Duration>{};
+  var peakKb = 0,
+      peakTotalKb = 0; // largest single process / all children together
+  final sampler = Timer.periodic(const Duration(seconds: 2), (_) async {
+    final all = await childFootprintsKb();
+    final kb = all.fold<int>(0, (a, b) => a > b ? a : b);
+    final total = all.fold<int>(0, (a, b) => a + b);
+    if (kb > peakKb) peakKb = kb;
+    if (total > peakTotalKb) peakTotalKb = total;
+    if (kb / 1048576 > maxRssGb && !done.isCompleted) {
+      done.completeError(
+        StateError(
+          '$job: memory ceiling crossed, ${(kb / 1048576).toStringAsFixed(1)} GB > $maxRssGb GB',
+        ),
+      );
+    }
+  });
   final sub = engine.events.listen((e) {
     switch (e) {
       case ProgressEvent() when e.job == job:
+        stageAt.putIfAbsent(e.stage, () => sw.elapsed);
         if (e.stage != lastStage ||
             DateTime.now().difference(lastLog) > const Duration(seconds: 20)) {
           say(
-            '   $job ${e.stage} ${e.done}${e.total == null ? '' : '/${e.total}'}',
+            '   $job ${e.stage} ${e.done}${e.total == null ? '' : '/${e.total}'}  mem ${(peakKb / 1048576).toStringAsFixed(1)} GB peak',
           );
           lastStage = e.stage;
           lastLog = DateTime.now();
@@ -72,9 +150,46 @@ Future<ResultEvent> runJob(
   try {
     await engine.start();
     engine.send(req);
-    return await done.future.timeout(timeout);
+    final result = await done.future.timeout(timeout);
+    final wall = sw.elapsed;
+    final order = stageAt.entries.toList()
+      ..sort((a, b) => a.value.compareTo(b.value));
+    final secs = <String, double>{
+      for (var i = 0; i < order.length; i++)
+        order[i].key:
+            ((i + 1 < order.length ? order[i + 1].value : wall) -
+                    order[i].value)
+                .inMilliseconds /
+            1000,
+    };
+    return JobRun(result, wall, peakKb / 1048576, secs, peakTotalKb / 1048576);
   } finally {
+    sampler.cancel();
     await sub.cancel();
+  }
+}
+
+/// Logs one job's numbers and checks the ceilings (generation only: wall <= 4 x audio + 90 s).
+void report(String name, JobRun r, {bool generation = true}) {
+  say(
+    '   $name: wall ${r.wall.inSeconds} s, peak ${r.peakGb.toStringAsFixed(1)} GB, stages ${r.stageSeconds.entries.map((e) => '${e.key} ${e.value.toStringAsFixed(1)} s').join(', ')}',
+  );
+  if (r.peakGb > maxRssGb)
+    _violations.add(
+      '$name: peak ${r.peakGb.toStringAsFixed(1)} GB > $maxRssGb GB',
+    );
+  final audio = r.result.duration;
+  if (generation && audio != null) {
+    final limit = Duration(
+      seconds: (wallPerAudioSecond * audio).ceil() + loadAllowance.inSeconds,
+    );
+    say(
+      '   $name: ${audio.toStringAsFixed(1)} s audio, wall/audio ${(r.wall.inMilliseconds / 1000 / audio).toStringAsFixed(2)}x, limit ${limit.inSeconds} s',
+    );
+    if (r.wall > limit)
+      _violations.add(
+        '$name: wall ${r.wall.inSeconds} s > limit ${limit.inSeconds} s (4 x ${audio.toStringAsFixed(1)} s audio + 90 s)',
+      );
   }
 }
 
@@ -168,36 +283,53 @@ void main() {
     });
     final out = p.join(dataDir, 'library');
 
-    // 2. one real generation (it also loads the model: stage "load")
+    // 2. real generation, cot=full (it also loads the model: stage "load")
     final song =
         jsonDecode(
               File(p.join(_root, 'reference', 'song.json')).readAsStringSync(),
             )
             as Map<String, dynamic>;
-    final gen = await timed(
+    GenerateRequest gen(String job, CotMode cot, {String? abc}) =>
+        GenerateRequest(
+          job: job,
+          out: p.join(out, job),
+          style: song['style'] as String,
+          lyrics: song['lyrics'] as String,
+          cot: cot,
+          seed: (song['seed'] as num).toInt(),
+          abc: abc,
+        );
+    final runs = <String, JobRun>{};
+    runs['generate cot=full'] = await timed(
       'generate (reference/song.json, cot=${song['cot']})',
       () => runJob(
         engine,
-        GenerateRequest(
-          job: 'real-song',
-          out: p.join(out, 'real-song'),
-          style: song['style'] as String,
-          lyrics: song['lyrics'] as String,
-          cot: CotMode.parse(song['cot'] as String?),
-          seed: (song['seed'] as num).toInt(),
-        ),
+        gen('real-song', CotMode.parse(song['cot'] as String?)),
         'real-song',
       ),
     );
-    final audio = p.join(gen.dir, gen.audio ?? 'audio.flac');
+    final g1 = runs['generate cot=full']!;
+    final audio = p.join(g1.result.dir, g1.result.audio ?? 'audio.flac');
     expect(File(audio).existsSync(), isTrue, reason: 'no audio at $audio');
     expect(File(audio).lengthSync(), greaterThan(10000));
     say(
-      '   song: $audio (${gen.duration?.toStringAsFixed(1)} s audio, seed ${gen.seed})',
+      '   song: $audio (${g1.result.duration?.toStringAsFixed(1)} s audio, seed ${g1.result.seed})',
     );
+    report('generate cot=full', g1);
 
-    // 3. one real transcription, Free mode (melody only)
-    final tr = await timed(
+    // 3. second generation, cot=melody and NO supplied score (the model plans the melody itself)
+    runs['generate cot=melody'] = await timed(
+      'generate (cot=melody, no score)',
+      () => runJob(engine, gen('real-melody', CotMode.melody), 'real-melody'),
+    );
+    final g2 = runs['generate cot=melody']!;
+    final audio2 = p.join(g2.result.dir, g2.result.audio ?? 'audio.flac');
+    expect(File(audio2).existsSync(), isTrue, reason: 'no audio at $audio2');
+    say('   song: $audio2 (${g2.result.duration?.toStringAsFixed(1)} s audio)');
+    report('generate cot=melody', g2);
+
+    // 4. one real transcription, Free mode (melody only), of the first song
+    runs['transcribe'] = await timed(
       'transcribe (Free, melody only)',
       () => runJob(
         engine,
@@ -210,38 +342,41 @@ void main() {
         'real-transcribe',
       ),
     );
-    final abcFile = File(p.join(tr.dir, 'score.abc'));
-    expect(abcFile.existsSync(), isTrue, reason: 'no score.abc in ${tr.dir}');
+    final tr = runs['transcribe']!;
+    report('transcribe', tr, generation: false);
+    final abcFile = File(p.join(tr.result.dir, 'score.abc'));
+    expect(
+      abcFile.existsSync(),
+      isTrue,
+      reason: 'no score.abc in ${tr.result.dir}',
+    );
     final abc = abcFile.readAsStringSync();
     expect(abc, contains('X:'));
     say('   score: ${abcFile.path} (${abc.length} chars)');
 
-    // 4. one cover generation from that ABC
-    final cover = await timed(
-      'cover generate (abc from step 3, cot=melody)',
+    // 5. one cover generation from that ABC
+    runs['cover (abc)'] = await timed(
+      'cover generate (abc from step 4, cot=melody)',
       () => runJob(
         engine,
-        GenerateRequest(
-          job: 'real-cover',
-          out: p.join(out, 'real-cover'),
-          style: song['style'] as String,
-          lyrics: song['lyrics'] as String,
-          cot: CotMode.melody,
-          seed: (song['seed'] as num).toInt(),
-          abc: abc,
-        ),
+        gen('real-cover', CotMode.melody, abc: abc),
         'real-cover',
       ),
     );
-    final coverAudio = p.join(cover.dir, cover.audio ?? 'audio.flac');
+    final cover = runs['cover (abc)']!;
+    final coverAudio = p.join(
+      cover.result.dir,
+      cover.result.audio ?? 'audio.flac',
+    );
     expect(
       File(coverAudio).existsSync(),
       isTrue,
       reason: 'no cover audio at $coverAudio',
     );
     say(
-      '   cover: $coverAudio (${cover.duration?.toStringAsFixed(1)} s audio)',
+      '   cover: $coverAudio (${cover.result.duration?.toStringAsFixed(1)} s audio)',
     );
+    report('cover (abc)', cover);
 
     say('=== SUMMARY (data dir $dataDir)');
     for (final e in stepTimes.entries) {
@@ -250,8 +385,16 @@ void main() {
     for (final e in _timings.entries) {
       say('  ${e.key.padRight(48)} ${e.value.inSeconds} s');
     }
+    for (final e in runs.entries) {
+      say(
+        '  ${e.key.padRight(20)} wall ${e.value.wall.inSeconds} s, peak ${e.value.peakGb.toStringAsFixed(1)} GB',
+      );
+    }
     say('  song:   $audio');
+    say('  melody: $audio2');
     say('  score:  ${abcFile.path}');
     say('  cover:  $coverAudio');
+    say(_violations.isEmpty ? '  CEILINGS: passed' : '  CEILINGS: FAILED');
+    expect(_violations, isEmpty, reason: _violations.join('; '));
   }, timeout: Timeout.none);
 }

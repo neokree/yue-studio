@@ -20,7 +20,6 @@ import sys
 import tempfile
 import time
 import wave
-from contextlib import contextmanager
 from pathlib import Path
 
 ENGINE_DIR = Path(__file__).resolve().parent
@@ -164,58 +163,12 @@ def pinned_revisions():
     return {s["repo"]: s["revision"] for s in steps if s.get("kind") == "hf"}
 
 
-def status_stage(label):
-    """yue2 _status description -> protocol stage (None: not a reportable stage)."""
-    if label == "Planning score":
-        return "abc"
-    if label == "Generating song":
-        return "semantic"
-    if label == "Synthesizing audio":
-        return "nar"
-    if label == "Decoding audio":
-        return "vae"
-    return "load" if label.startswith(("Loading", "Resolving", "Verifying")) else None
-
-
-class _Quiet:
-    """The stage handle yue2 gets from _status: update/set_total/advance/finish/token, reporting via on_progress."""
-
-    def __init__(self, on_progress, stage, total):
-        self.on_progress, self.stage, self.total, self.completed = on_progress, stage, total, 0
-
-    def _emit(self):
-        if self.on_progress:
-            self.on_progress(self.stage, self.completed, self.total)
-
-    def update(self, completed, total=None):
-        self.completed = int(completed)
-        if total is not None:
-            self.total = int(total)
-        self._emit()
-
-    def set_total(self, total):
-        self.total = None if total is None else int(total)
-
-    def advance(self, count=1):
-        self.completed += count
-        if self.total is not None or self.completed % 25 == 0:  # token stages: one event per 25 tokens
-            self._emit()
-
-    def token(self, phase, token):
-        self.advance()
-
-    def finish(self, status="completed"):
-        pass
-
-
 class Yue2Backend(Backend):
     """Offline by construction: HF_HUB_OFFLINE=1 plus local_files_only, so nothing is ever downloaded here."""
 
     def __init__(self, data_dir):
         self.data = Path(data_dir)
         self.pipe = None
-        self._sink = None  # (on_progress, seconds spent per stage) of the running generate
-        self._reached = 0  # index in STAGES of the furthest stage reported, so progress never goes backwards
         os.environ["HF_HOME"] = str(self.data / "hf")
         os.environ["HF_HUB_OFFLINE"] = "1"  # before huggingface_hub is imported
         os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
@@ -233,7 +186,8 @@ class Yue2Backend(Backend):
                 "m-a-p/YuE2-3B", vae="m-a-p/YuE2-Vae", device="auto", progress=False,
                 revision=pins.get("m-a-p/YuE2-3B"), vae_revision=pins.get("m-a-p/YuE2-Vae"),
                 cache_dir=str(self.data / "hf" / "hub"), local_files_only=True)
-            self.attach(self.pipe)
+            # Weights load lazily inside the first call; do it now so stage `load` is the load and abc/semantic are not.
+            self.pipe._load_model()
         except Exception as exc:
             raise RuntimeError(f"Could not load the YuE2 model from the local install ({type(exc).__name__}: {exc}). "
                                "Run setup again.") from exc
@@ -251,32 +205,6 @@ class Yue2Backend(Backend):
         except Exception:  # torch missing or no MPS: nothing more to free
             pass
 
-    def attach(self, pipe):
-        pipe.progress = True  # yue2 only reports nar/vae steps and token counts when progress is on...
-        pipe._status = self._status  # ...so route its status contexts here: nothing is printed (stdout is the protocol)
-
-    @contextmanager
-    def _status(self, label, *, total=None, unit=None):
-        """Stand-in for YuE2Pipeline._status (yue2 0.1.6): same signature, forwards to the job's on_progress."""
-        stage = status_stage(label)
-        sink = self._sink
-        if stage is None or sink is None:
-            yield _Quiet(None, stage, None)
-            return
-        on_progress, spent = sink
-        started = time.monotonic()
-        if STAGES.index(stage) < self._reached:  # e.g. "Loading audio decoder" right before "Decoding audio"
-            on_progress = None
-        else:
-            self._reached = STAGES.index(stage)
-            on_progress(stage, 0, total)
-        try:
-            yield _Quiet(on_progress, stage, total)
-        finally:
-            spent[stage] += time.monotonic() - started
-            if label == "Loading audio decoder":
-                spent["decoder"] += time.monotonic() - started
-
     def generate(self, req, on_progress, cancelled):
         out, seed = Path(req["out"]), req["seed"]
         if not str(req.get("style", "")).strip():
@@ -289,29 +217,30 @@ class Yue2Backend(Backend):
             t["load"] = time.monotonic() - started
             if cancelled.is_set():
                 raise Cancelled()
-        spent = dict.fromkeys(STAGES + ("decoder",), 0.0)
-        self._sink = (on_progress, spent)
-        self._reached = 0
+        counts = {}
+
+        def on_token(phase, _token):  # phases "abc" and "semantic"; one event per 25 tokens (PROTOCOL.md section 3)
+            counts[phase] = n = counts.get(phase, 0) + 1
+            if n == 1 or n % 25 == 0:
+                on_progress(phase, n if n > 1 else 0, None)
+
         request = dict(style=req["style"], lyrics=req.get("lyrics", ""), cot=req["cot"], seed=seed)
         if req.get("abc"):
             request["abc"] = req["abc"]
         try:
-            song = self.pipe(**request, cancelled=cancelled.is_set)
+            song = self.pipe(**request, cancelled=cancelled.is_set, on_token=on_token, on_progress=on_progress)
         except Exception:
             if cancelled.is_set():  # the pipeline raises InterruptedError when cancelled
                 raise Cancelled()
             raise
-        finally:
-            self._sink = None
         if cancelled.is_set():
             raise Cancelled()
         song.save_artifacts(out)
-        pt = song.timing  # yue2 0.1.6: abc/semantic are dicts with "seconds"; nar/vae are plain floats
-        t["load"] += spent["load"]  # "Loading model" / "Loading audio decoder" happen lazily inside the call
+        pt = song.timing  # abc/semantic are dicts with "seconds"; nar/vae are plain floats (vae includes the lazy decoder load)
         t["abc"] = float((pt.get("abc") or {}).get("seconds", 0.0))
         t["semantic"] = float((pt.get("semantic") or {}).get("seconds", 0.0))
         t["nar"] = float(pt.get("nar_seconds", 0.0))
-        t["vae"] = max(0.0, float(pt.get("vae_seconds", 0.0)) - spent["decoder"])  # its decoder load is counted in "load"
+        t["vae"] = float(pt.get("vae_seconds", 0.0))
         return dict(dir=str(out), audio="audio.flac", seed=seed,
                     duration=float(len(song.audio) / song.sample_rate), timings=t)
 
