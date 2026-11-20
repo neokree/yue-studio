@@ -1,13 +1,11 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:path/path.dart' as p;
 
 import '../app/paths.dart';
-import '../engine/process_engine.dart';
 import 'manifest.dart';
+import 'step_runner.dart';
 
 enum StepStatus { pending, running, done, failed }
 
@@ -16,20 +14,58 @@ class SetupStepState {
 
   /// 0..1 when known, null = indeterminate.
   double? progress;
+  int? doneBytes, totalBytes;
+
+  /// Indeterminate steps: what is happening (connecting, python, venv, packages) and the last tool output line.
+  String? phase, detail;
   String? error;
 }
 
-/// Runs the manifest steps with uv (PROTOCOL.md section 5) and remembers finished ones.
+/// Margin kept free on top of what is still to download (PROTOCOL.md / CONTRACT: manifest bytes + 2 GB).
+const diskMarginBytes = 2000000000;
+
+typedef FreeBytes = Future<int?> Function(String dir);
+
+/// Free bytes on the volume holding [dir] (null when it can't be told: don't block setup).
+Future<int?> dfFreeBytes(String dir) async {
+  try {
+    final r = await Process.run('df', ['-Pk', dir]);
+    final cols = (r.stdout as String).trim().split('\n').last.split(RegExp(r'\s+'));
+    return int.parse(cols[3]) * 1024;
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Runs the manifest steps in order (PROTOCOL.md section 5) and remembers finished ones in setup-state.json.
 class Installer extends ChangeNotifier {
-  Installer({required this.paths, required this.manifest, Set<String> done = const {}}) {
+  Installer({
+    required this.paths,
+    required this.manifest,
+    Set<String> done = const {},
+    StepRunner? runner,
+    FreeBytes freeBytes = dfFreeBytes,
+  })  : runner = runner ?? ProcessStepRunner(paths),
+        // ignore: prefer_initializing_formals
+        _freeBytes = freeBytes {
     for (final s in manifest.steps) {
       states[s.id] = SetupStepState()..status = done.contains(s.id) ? StepStatus.done : StepStatus.pending;
+    }
+    // Steps without a size (uv python/venv) share what the manifest total has beyond the sized steps.
+    final sized = manifest.steps.fold<int>(0, (a, s) => a + s.bytes);
+    final unsized = manifest.steps.where((s) => s.bytes == 0).length;
+    final share = unsized == 0 ? 0 : ((manifest.bytes - sized).clamp(0, manifest.bytes) / unsized).round();
+    for (final s in manifest.steps) {
+      _weight[s.id] = s.bytes > 0 ? s.bytes : share;
     }
   }
 
   final Paths paths;
   final SetupManifest manifest;
+  final StepRunner runner;
+  final FreeBytes _freeBytes;
   final Map<String, SetupStepState> states = {};
+  final Map<String, int> _weight = {};
   bool running = false;
 
   /// Set when the free-disk check fails (not tied to a step).
@@ -50,16 +86,34 @@ class Installer extends ChangeNotifier {
   bool get started => states.values.any((s) => s.status != StepStatus.pending);
   bool get failed => diskShort != null || states.values.any((s) => s.status == StepStatus.failed);
 
+  /// Bytes the step counts for in the totals (its own size, or its share of the unsized remainder).
+  int weightOf(SetupStep s) => _weight[s.id] ?? 0;
+
+  int get totalBytes => _weight.values.fold(0, (a, b) => a + b);
+
+  int get downloadedBytes {
+    var sum = 0.0;
+    for (final s in manifest.steps) {
+      final st = states[s.id]!;
+      final w = weightOf(s);
+      sum += switch (st.status) { StepStatus.done => w.toDouble(), StepStatus.running => w * (st.progress ?? 0), _ => 0 };
+    }
+    return sum.round();
+  }
+
+  /// 0..1 for the one overall bar.
+  double get overall => totalBytes == 0 ? (complete ? 1 : 0) : (downloadedBytes / totalBytes).clamp(0.0, 1.0);
+
   Future<void> install() async {
     if (running) return;
     running = true;
     diskShort = null;
     notifyListeners();
     try {
-      await Directory(paths.dataDir).create(recursive: true);
-      final free = await _freeBytes();
-      final remaining = manifest.steps.where((s) => states[s.id]!.status != StepStatus.done).fold<int>(0, (a, s) => a + s.bytes);
-      final need = (remaining * 1.1).round();
+      Directory(paths.dataDir).createSync(recursive: true);
+      final remaining = manifest.steps.where((s) => states[s.id]!.status != StepStatus.done).fold<int>(0, (a, s) => a + weightOf(s));
+      final need = remaining + diskMarginBytes;
+      final free = await _freeBytes(paths.dataDir);
       if (free != null && free < need) {
         diskShort = (need: need, free: free);
         return;
@@ -70,21 +124,33 @@ class Installer extends ChangeNotifier {
         st
           ..status = StepStatus.running
           ..progress = null
+          ..doneBytes = null
+          ..totalBytes = null
+          ..phase = null
+          ..detail = null
           ..error = null;
         notifyListeners();
         try {
-          await _run(step, st);
+          await runner.run(step, ({phase, progress, doneBytes, totalBytes, detail}) {
+            if (phase != null) st.phase = phase;
+            if (progress != null) st.progress = progress;
+            if (doneBytes != null) st.doneBytes = doneBytes;
+            if (totalBytes != null) st.totalBytes = totalBytes;
+            if (detail != null) st.detail = detail.isEmpty ? null : detail;
+            notifyListeners();
+          });
         } catch (e) {
           st
             ..status = StepStatus.failed
-            ..error = e.toString();
-          return;
-        } finally {
+            ..error = e is SetupException ? e.message : e.toString();
           notifyListeners();
+          return; // Retry resumes here: finished steps are skipped
         }
         st
           ..status = StepStatus.done
-          ..progress = 1;
+          ..progress = 1
+          ..phase = null
+          ..detail = null;
         _saveState();
         notifyListeners();
       }
@@ -97,93 +163,5 @@ class Installer extends ChangeNotifier {
   void _saveState() {
     final done = [for (final s in manifest.steps) if (states[s.id]!.status == StepStatus.done) s.id];
     File(paths.setupState).writeAsStringSync(jsonEncode({'done': done}));
-  }
-
-  Future<int?> _freeBytes() async {
-    try {
-      final r = await Process.run('df', ['-k', paths.dataDir]);
-      final cols = (r.stdout as String).trim().split('\n').last.split(RegExp(r'\s+'));
-      return int.parse(cols[3]) * 1024;
-    } catch (_) {
-      return null; // can't tell: don't block
-    }
-  }
-
-  Future<void> _run(SetupStep step, SetupStepState st) async {
-    final raw = step.raw;
-    final env = ProcessEngine.environmentFor(paths);
-    switch (step.kind) {
-      case 'python':
-        await _exec(paths.uv, ['python', 'install', raw['version'] as String], env);
-      case 'venv':
-        final venv = p.join(paths.dataDir, 'venvs', raw['name'] as String);
-        await _exec(paths.uv, ['venv', venv, '--python', raw['python'] as String, '--clear'], env);
-        final packages = [...?(raw['packages'] as List?)?.cast<String>()];
-        final req = raw['requirements'] as String?;
-        if (packages.isNotEmpty || req != null) {
-          await _exec(
-            paths.uv,
-            [
-              'pip', 'install', '--python', p.join(venv, 'bin', 'python'),
-              ...packages,
-              if (req != null) ...['-r', p.join(paths.dataDir, req)],
-            ],
-            env,
-          );
-        }
-      case 'hf':
-        final local = raw['local_dir'] as String?;
-        await _exec(
-          paths.venvPython(raw['venv'] as String),
-          [
-            paths.fetcher,
-            '--repo', raw['repo'] as String,
-            '--revision', raw['revision'] as String? ?? 'main',
-            if (local != null) ...['--local-dir', p.join(paths.dataDir, local)],
-          ],
-          env,
-          onLine: (line) => _hfLine(line, st),
-        );
-      default:
-        throw StateError('unknown step kind "${step.kind}"');
-    }
-  }
-
-  void _hfLine(String line, SetupStepState st) {
-    try {
-      final j = jsonDecode(line);
-      if (j is! Map) return;
-      if (j['type'] == 'progress') {
-        final total = (j['total'] as num?) ?? 0;
-        st.progress = total > 0 ? ((j['done'] as num) / total).clamp(0.0, 1.0).toDouble() : null;
-        notifyListeners();
-      } else if (j['type'] == 'error') {
-        throw StateError(j['message'] as String? ?? 'download failed');
-      }
-    } on FormatException {
-      // not a JSON line: ignore
-    }
-  }
-
-  Future<void> _exec(String exe, List<String> args, Map<String, String> env, {void Function(String)? onLine}) async {
-    final proc = await Process.start(exe, args, environment: env, includeParentEnvironment: false);
-    final tail = <String>[];
-    Object? lineError;
-    void handle(String l) {
-      tail.add(l);
-      if (tail.length > 20) tail.removeAt(0);
-      try {
-        onLine?.call(l);
-      } catch (e) {
-        lineError ??= e;
-      }
-    }
-
-    final out = proc.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen(handle).asFuture<void>();
-    final err = proc.stderr.transform(utf8.decoder).transform(const LineSplitter()).listen(handle).asFuture<void>();
-    final code = await proc.exitCode;
-    await Future.wait([out, err]);
-    if (lineError != null) throw lineError!;
-    if (code != 0) throw StateError('${p.basename(exe)} exited with $code\n${tail.join('\n')}');
   }
 }

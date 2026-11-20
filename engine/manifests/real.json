@@ -1,6 +1,6 @@
 {
   "name": "real",
-  "bytes": 11500000000,
+  "bytes": 13540863121,
   "steps": [
     {
       "id": "python-3.12",
@@ -23,8 +23,8 @@
       "kind": "hf",
       "label": "YuE2 3B model",
       "repo": "m-a-p/YuE2-3B",
-      "revision": "main",
-      "bytes": 6800000000,
+      "revision": "8f24312f187763b9854adeec87e437e2b03bbff1",
+      "bytes": 7295777199,
       "venv": "yue2"
     },
     {
@@ -32,8 +32,8 @@
       "kind": "hf",
       "label": "YuE2 audio decoder",
       "repo": "m-a-p/YuE2-Vae",
-      "revision": "main",
-      "bytes": 507000000,
+      "revision": "152733a19ad43aa67e367f9b5503ef8075bb5126",
+      "bytes": 531344799,
       "venv": "yue2"
     },
     {
@@ -47,8 +47,8 @@
       "kind": "hf",
       "label": "SheetSage2 melody model",
       "repo": "m-a-p/SheetSage2",
-      "revision": "main",
-      "bytes": 223000000,
+      "revision": "b83c3d79a6d98bcffaf8f9ed112c90aa887887bc",
+      "bytes": 233375987,
       "local_dir": "models/SheetSage2",
       "venv": "yue2"
     },
@@ -59,7 +59,7 @@
       "name": "sheetsage2",
       "python": "3.11",
       "packages": [
-        "soundfile"
+        "soundfile==0.14.0"
       ],
       "requirements": "models/SheetSage2/requirements.txt"
     },
@@ -68,8 +68,8 @@
       "kind": "hf",
       "label": "MERT audio encoder",
       "repo": "m-a-p/MERT-v2-FullSong",
-      "revision": "main",
-      "bytes": 2300000000,
+      "revision": "d8ba1c745e733b3908ce6ad16ebeb17ac7600a42",
+      "bytes": 2530365136,
       "venv": "sheetsage2"
     }
   ]

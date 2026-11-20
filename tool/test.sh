@@ -59,13 +59,16 @@ layer_e2e() {
     -e YUE2_STUDIO_ENGINE_DIR=/work/engine \
     -e YUE2_STUDIO_MANIFEST=/work/engine/manifests/fake.json \
     -e YUE2_STUDIO_FAKE=1 \
-    -e YUE2_FAKE_STEP_SECONDS=0.2 \
+    -e YUE2_FAKE_STEP_SECONDS=0.8 \
+    -e YUE2_STUDIO_TEST_PICK_FILE=/tmp/e2e-pick.wav \
     -e E2E_SHOTS_DIR=/shots \
     -e E2E_SONG_JSON=/work/reference/song.json \
     "$IMAGE" bash -c '
       set -euo pipefail
       rsync -a --delete --exclude=/build --exclude=/.dart_tool --exclude=/.git --exclude=/.fvm --exclude=/dist /src/ /work/
       cd /work
+      # 4 s silent 48 kHz stereo wav for the Cover step (no python in the image: perl ships with ubuntu)
+      perl tool/make_pick_wav.pl > /tmp/e2e-pick.wav
       export YUE2_STUDIO_DATA_DIR="$(mktemp -d /tmp/yue-data.XXXXXX)"
       flutter pub get
       xvfb-run -a -s "-screen 0 1280x800x24" flutter test integration_test/app_e2e_test.dart -d linux

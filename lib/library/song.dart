@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../artwork/artwork.dart';
 import '../engine/protocol.dart';
 
 enum SongStatus { queued, generating, done, failed }
@@ -19,6 +20,7 @@ class Song {
     this.audio,
     this.duration,
     this.error,
+    this.artwork,
   });
 
   final String id, title;
@@ -30,6 +32,11 @@ class Song {
   final String? audio, error;
   final double? duration;
 
+  /// Stored artwork spec; null for songs from before artwork (the store assigns and persists one on load).
+  final ArtworkSpec? artwork;
+
+  ArtworkSpec get art => artwork ?? ArtworkSpec.forId(id);
+
   Song copyWith({
     String? title,
     SongStatus? status,
@@ -38,6 +45,7 @@ class Song {
     String? audio,
     double? duration,
     String? error,
+    ArtworkSpec? artwork,
     bool clearError = false,
   }) =>
       Song(
@@ -51,6 +59,7 @@ class Song {
         audio: audio ?? this.audio,
         duration: duration ?? this.duration,
         error: clearError ? null : (error ?? this.error),
+        artwork: artwork ?? this.artwork,
       );
 
   Map<String, dynamic> toJson() => {
@@ -64,6 +73,7 @@ class Song {
         'audio': audio,
         'duration': duration,
         'error': error,
+        if (artwork != null) 'artwork': artwork!.toJson(),
       };
 
   factory Song.fromJson(Map<String, dynamic> j) => Song(
@@ -77,6 +87,7 @@ class Song {
         audio: j['audio'] as String?,
         duration: (j['duration'] as num?)?.toDouble(),
         error: j['error'] as String?,
+        artwork: j['artwork'] is Map ? ArtworkSpec.fromJson(Map<String, dynamic>.from(j['artwork'] as Map)) : null,
       );
 
   String encode() => const JsonEncoder.withIndent('  ').convert(toJson());

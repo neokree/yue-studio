@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
+import '../artwork/artwork.dart';
 import 'song.dart';
 
 /// Directory scan of the library folder (one meta.json per song), newest first. No database.
@@ -14,6 +15,19 @@ class LibraryStore extends ChangeNotifier {
 
   final String root;
   List<Song> songs = [];
+
+  /// Library filter shared by the sidebar (Liked) and the Library screen (All/Liked).
+  bool likedOnly = false;
+
+  void setLikedOnly(bool v) {
+    if (v == likedOnly) return;
+    likedOnly = v;
+    notifyListeners();
+  }
+
+  int get count => songs.length;
+  int get likedCount => songs.where((s) => s.liked).length;
+  List<Song> get visible => likedOnly ? songs.where((s) => s.liked).toList() : songs;
 
   String dirOf(String id) => p.join(root, id);
 
@@ -26,11 +40,13 @@ class LibraryStore extends ChangeNotifier {
         final meta = File(p.join(d.path, 'meta.json'));
         if (!meta.existsSync()) continue;
         try {
-          var s = Song.fromJson(jsonDecode(meta.readAsStringSync()) as Map<String, dynamic>);
-          if (s.status == SongStatus.queued || s.status == SongStatus.generating) {
-            s = s.copyWith(status: SongStatus.failed, error: 'Interrupted');
-            _write(s);
-          }
+          final raw = jsonDecode(meta.readAsStringSync()) as Map<String, dynamic>;
+          var s = Song.fromJson(raw);
+          final interrupted = s.status == SongStatus.queued || s.status == SongStatus.generating;
+          if (interrupted) s = s.copyWith(status: SongStatus.failed, error: 'Interrupted');
+          // Old songs get a stable artwork seed (FNV-1a of the id), persisted so it can never change.
+          if (s.artwork == null) s = s.copyWith(artwork: ArtworkSpec.forId(s.id));
+          if (interrupted || raw['artwork'] == null) _write(s);
           found.add(s);
         } catch (_) {} // unreadable meta: skip the folder
       }
@@ -55,6 +71,7 @@ class LibraryStore extends ChangeNotifier {
       status: SongStatus.queued,
       kind: kind,
       request: request,
+      artwork: ArtworkSpec(seed: Random().nextInt(1 << 31)),
     );
     _write(s);
     songs = [s, ...songs]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -67,6 +84,31 @@ class LibraryStore extends ChangeNotifier {
     final i = songs.indexWhere((x) => x.id == s.id);
     if (i >= 0) songs = [...songs]..[i] = s;
     notifyListeners();
+  }
+
+  void rename(String id, String title) {
+    final s = byId(id), t = title.trim();
+    if (s != null && t.isNotEmpty && t != s.title) update(s.copyWith(title: t));
+  }
+
+  void toggleLike(String id) {
+    final s = byId(id);
+    if (s != null) update(s.copyWith(liked: !s.liked));
+  }
+
+  /// Removes the song folder (audio, score, meta). Callers must not delete a queued/generating song.
+  void delete(String id) {
+    final d = Directory(dirOf(id));
+    if (d.existsSync()) d.deleteSync(recursive: true);
+    songs = songs.where((s) => s.id != id).toList();
+    notifyListeners();
+  }
+
+  /// Copies the song's audio file to [destPath].
+  Future<void> exportAudio(Song song, String destPath) async {
+    final a = song.audio;
+    if (a == null) throw StateError('Song has no audio');
+    await File(p.join(dirOf(song.id), a)).copy(destPath);
   }
 
   void _write(Song s) {

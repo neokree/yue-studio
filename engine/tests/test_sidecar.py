@@ -14,6 +14,9 @@ from pathlib import Path
 
 import pytest
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import backends  # noqa: E402
+
 SIDECAR = Path(__file__).resolve().parent.parent / "sidecar.py"
 
 
@@ -190,3 +193,78 @@ def test_shutdown_mid_job(slow):
     slow.send({"type": "shutdown"})
     assert slow.p.wait(timeout=5) == 0
     assert slow.until(kinds=("error",))[-1]["cancelled"] is True
+
+
+# ---------------------------------------------------------------- timings (additive protocol field)
+
+def test_result_timings(sc):
+    sc.gen("a")
+    res = sc.until()[-1]
+    t = res["timings"]
+    assert set(t) == {"load", "abc", "semantic", "nar", "vae"}
+    assert all(isinstance(v, float) and v >= 0 for v in t.values())
+    assert t["load"] > 0 and t["abc"] > 0 and t["semantic"] > 0 and t["nar"] > 0 and t["vae"] > 0
+    sc.gen("b", cot="off")  # second job: model already loaded, no abc stage
+    t = sc.until()[-1]["timings"]
+    assert t["load"] == 0 and t["abc"] == 0 and t["semantic"] > 0
+
+
+# ---------------------------------------------------------------- backend split
+
+def test_backends_contract():
+    assert issubclass(backends.FakeBackend, backends.Backend) and issubclass(backends.Yue2Backend, backends.Backend)
+    assert backends.FakeBackend.fake and not backends.Yue2Backend.fake
+    src = SIDECAR.read_text()
+    assert "import torch" not in src and "from yue2" not in src  # sidecar.py only does protocol
+
+
+def test_fake_backend_direct(tmp_path):
+    b = backends.FakeBackend()
+    seen = []
+    r = b.generate({"out": str(tmp_path / "x"), "seed": 3, "cot": "full", "style": "s"},
+                   lambda *a: seen.append(a[0]), threading.Event())
+    assert r["audio"] == "audio.wav" and r["timings"]["load"] > 0
+    assert list(dict.fromkeys(seen)) == ["load", "abc", "semantic", "nar", "vae"]
+    ev = threading.Event()
+    ev.set()
+    with pytest.raises(backends.Cancelled):
+        b.generate({"out": str(tmp_path / "y"), "seed": 3, "cot": "full"}, lambda *a: None, ev)
+
+
+def test_yue2_backend_is_offline_and_pinned(tmp_path, monkeypatch):
+    for k in ("HF_HUB_OFFLINE", "HF_HOME", "HF_TOKEN"):
+        monkeypatch.setenv(k, "x")  # restored after the test
+    monkeypatch.delenv("YUE2_STUDIO_MANIFEST", raising=False)
+    b = backends.Yue2Backend(tmp_path)
+    assert os.environ["HF_HUB_OFFLINE"] == "1" and os.environ["HF_HOME"] == str(tmp_path / "hf")
+    assert "HF_TOKEN" not in os.environ and b.pipe is None  # constructing must not import torch or load anything
+    with pytest.raises(RuntimeError, match="not installed"):
+        b.transcribe({"out": str(tmp_path / "o"), "audio": "a.wav", "mode": "full"}, lambda *a: None, threading.Event())
+    pins = backends.pinned_revisions()
+    assert pins["m-a-p/YuE2-3B"] == "8f24312f187763b9854adeec87e437e2b03bbff1"
+    assert pins["m-a-p/MERT-v2-FullSong"] == "d8ba1c745e733b3908ce6ad16ebeb17ac7600a42"
+
+
+def test_real_manifest_pins_every_model():
+    m = json.loads((Path(__file__).resolve().parent.parent / "manifests" / "real.json").read_text())
+    hf = [s for s in m["steps"] if s["kind"] == "hf"]
+    assert len(hf) == 4 and all(len(s["revision"]) == 40 and s["revision"] != "main" for s in hf)
+    assert m["bytes"] >= sum(s["bytes"] for s in hf)
+    venv = next(s for s in m["steps"] if s["id"] == "venv-sheetsage2")
+    assert "soundfile==0.14.0" in venv["packages"] and venv["requirements"].endswith("requirements.txt")
+
+
+def test_real_mode_transcribe_without_install_errors(tmp_path):
+    """Real sidecar starts without torch; a transcribe with no venv fails cleanly instead of hanging."""
+    p = subprocess.Popen([sys.executable, str(SIDECAR), "--data-dir", str(tmp_path)], stdin=subprocess.PIPE,
+                         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                         env={k: v for k, v in os.environ.items() if not k.startswith("HF_")})
+    try:
+        assert json.loads(p.stdout.readline()) == {"type": "ready", "version": 1, "fake": False}
+        p.stdin.write(json.dumps({"type": "transcribe", "job": "t", "audio": "a.wav", "out": str(tmp_path / "o"), "mode": "melody"}) + "\n")
+        p.stdin.flush()
+        ev = json.loads(p.stdout.readline())
+        assert ev["type"] == "error" and "not installed" in ev["message"] and ev["cancelled"] is False
+    finally:
+        p.kill()
+        p.wait()

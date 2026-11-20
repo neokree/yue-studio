@@ -30,7 +30,7 @@ Hard deadline: **today 16:00**. Speed is the priority of this document.
 ## 3. Features (all four ship today, in this order)
 
 1. **First-run setup**: one screen that downloads and installs everything (engine + all models, Cover included, about 10 GB), with real progress per step, resumable, retry on failure, free-disk check before starting. Shows the model licence note (weights are CC BY-NC 4.0 with creator permission) and the unofficial notice.
-2. **Create (Text to Song)**: style, lyrics (section tags `[Verse]`, `[Chorus]`), symbolic plan mode (`full` default, `melody`, `off`), seed (random by default). Generate.
+2. **Create (Text to Song)**: title (optional, defaults to the first lyric line), style, lyrics (section tags `[Verse]`, `[Chorus]`), symbolic plan mode (`full` default, `melody`, `off`), seed (random by default). Generate.
 3. **Library**: every generation, newest first, with artwork, title, duration, date, status (queued, generating, done, failed). Actions: play (persistent player bar at the bottom), like, rename, delete, filter "liked only", "reuse style and lyrics" (prefills Create), export audio file. Not today: playlists, sharing, search.
 4. **Cover**: upload a recording (wav, flac, mp3, ogg), choose "Close" (melody + chords, `cot=full`) or "Free" (melody only, `cot=melody`), transcribe to an ABC score shown in an editable field (pasting your own score also works), then style + lyrics + generate. Lyrics are typed by the user; there is no lyric recognition.
 

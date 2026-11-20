@@ -47,6 +47,10 @@ class Translations with BaseTranslations<AppLocale, Translations> {
 	late final Translations$create$en create = Translations$create$en._(_root);
 	late final Translations$cover$en cover = Translations$cover$en._(_root);
 	late final Translations$library$en library = Translations$library$en._(_root);
+	late final Translations$score$en score = Translations$score$en._(_root);
+	late final Translations$player$en player = Translations$player$en._(_root);
+	late final Translations$generation$en generation = Translations$generation$en._(_root);
+	late final Translations$shell$en shell = Translations$shell$en._(_root);
 }
 
 // Path: app
@@ -90,17 +94,17 @@ class Translations$setup$en {
 
 	// Translations
 
-	/// en: 'Set up YuE2 Studio'
-	String get title => 'Set up YuE2 Studio';
+	/// en: 'Setting up YuE'
+	String get titlePre => 'Setting up YuE';
 
-	/// en: 'The engine and the models are downloaded once into a private folder. Nothing outside it is touched.'
-	String get intro => 'The engine and the models are downloaded once into a private folder. Nothing outside it is touched.';
+	/// en: ' Studio'
+	String get titlePost => ' Studio';
+
+	/// en: 'Your private-first music generation studio. Music is generated locally.'
+	String get subtitle => 'Your private-first music generation studio. Music is generated locally.';
 
 	/// en: 'Install'
 	String get install => 'Install';
-
-	/// en: 'Resume'
-	String get resume => 'Resume';
 
 	/// en: 'Retry'
 	String get retry => 'Retry';
@@ -108,22 +112,22 @@ class Translations$setup$en {
 	/// en: 'Installing...'
 	String get installing => 'Installing...';
 
-	/// en: 'All set'
-	String get done => 'All set';
+	/// en: 'Total download'
+	String get totalDownload => 'Total download';
 
-	/// en: 'Model weights are licensed CC BY-NC 4.0 and used with the permission of their creators. Non-commercial use only.'
-	String get licence => 'Model weights are licensed CC BY-NC 4.0 and used with the permission of their creators. Non-commercial use only.';
+	/// en: '$done of $total'
+	String progress({required Object done, required Object total}) => '${done} of ${total}';
 
-	/// en: 'Needs about $size of free disk space.'
-	String disk({required Object size}) => 'Needs about ${size} of free disk space.';
+	/// en: 'Not enough free disk space. Setup needs $need and only $free is available. Free up space, then press Retry.'
+	String noDisk({required Object need, required Object free}) => 'Not enough free disk space. Setup needs ${need} and only ${free} is available. Free up space, then press Retry.';
 
-	/// en: 'Not enough free disk space: $need needed, $free available.'
-	String noDisk({required Object need, required Object free}) => 'Not enough free disk space: ${need} needed, ${free} available.';
+	/// en: 'Failed'
+	String get failed => 'Failed';
 
-	/// en: 'Step failed: $message'
-	String failed({required Object message}) => 'Step failed: ${message}';
+	/// en: 'Unofficial client, not affiliated with the YuE2 authors.'
+	String get fine => 'Unofficial client, not affiliated with the YuE2 authors.';
 
-	late final Translations$setup$step$en step = Translations$setup$step$en._(_root);
+	late final Translations$setup$phase$en phase = Translations$setup$phase$en._(_root);
 }
 
 // Path: create
@@ -140,38 +144,44 @@ class Translations$create$en {
 	/// en: 'Style'
 	String get style => 'Style';
 
-	/// en: 'English, warm piano pop, expressive female voice, 88 BPM'
-	String get styleHint => 'English, warm piano pop, expressive female voice, 88 BPM';
+	/// en: 'Genre, instruments, voice, language, tempo'
+	String get styleHint => 'Genre, instruments, voice, language, tempo';
+
+	/// en: 'English, warm piano pop, expressive female voice, acoustic piano, 88 BPM'
+	String get stylePlaceholder => 'English, warm piano pop, expressive female voice, acoustic piano, 88 BPM';
 
 	/// en: 'Lyrics'
 	String get lyrics => 'Lyrics';
 
-	/// en: '[Verse]\nWrite your lyrics here\n\n[Chorus]\n...'
-	String get lyricsHint => '[Verse]\nWrite your lyrics here\n\n[Chorus]\n...';
+	/// en: 'Use [Verse] and [Chorus].'
+	String get lyricsHint => 'Use [Verse] and [Chorus].';
 
-	/// en: 'Symbolic plan'
-	String get plan => 'Symbolic plan';
+	/// en: '[Verse] Write your lyrics here [Chorus] ...'
+	String get lyricsPlaceholder => '[Verse]\nWrite your lyrics here\n\n[Chorus]\n...';
 
-	/// en: 'Full'
-	String get planFull => 'Full';
+	/// en: 'Plan'
+	String get plan => 'Plan';
+
+	/// en: 'Melody + chords'
+	String get planFull => 'Melody + chords';
 
 	/// en: 'Melody'
 	String get planMelody => 'Melody';
 
-	/// en: 'Off'
-	String get planOff => 'Off';
+	/// en: 'None'
+	String get planOff => 'None';
 
 	/// en: 'Seed'
 	String get seed => 'Seed';
 
-	/// en: 'Random'
-	String get seedHint => 'Random';
+	/// en: 'random'
+	String get seedHint => 'random';
 
-	/// en: 'Generate'
-	String get generate => 'Generate';
+	/// en: 'About $time on this Mac'
+	String estimate({required Object time}) => 'About ${time} on this Mac';
 
-	/// en: 'Added to the library'
-	String get queued => 'Added to the library';
+	/// en: 'Add to Queue'
+	String get generate => 'Add to Queue';
 
 	/// en: 'Untitled'
 	String get untitled => 'Untitled';
@@ -188,8 +198,107 @@ class Translations$cover$en {
 	/// en: 'Cover'
 	String get title => 'Cover';
 
-	/// en: 'Cover is coming soon.'
-	String get soon => 'Cover is coming soon.';
+	/// en: 'Choose a recording'
+	String get pick => 'Choose a recording';
+
+	/// en: 'A wav, flac, mp3 or ogg file to cover.'
+	String get pickHint => 'A wav, flac, mp3 or ogg file to cover.';
+
+	/// en: 'Audio'
+	String get pickDialog => 'Audio';
+
+	/// en: 'Replace'
+	String get replace => 'Replace';
+
+	/// en: 'Remove'
+	String get remove => 'Remove';
+
+	/// en: 'No recording yet'
+	String get noFile => 'No recording yet';
+
+	/// en: '$size · $length · $state'
+	String meta({required Object size, required Object length, required Object state}) => '${size} · ${length} · ${state}';
+
+	/// en: 'not transcribed'
+	String get stateIdle => 'not transcribed';
+
+	/// en: 'transcribing'
+	String get stateWorking => 'transcribing';
+
+	/// en: 'score ready'
+	String get stateReady => 'score ready';
+
+	/// en: 'Score'
+	String get scoreTitle => 'Score';
+
+	/// en: 'Taken from the recording, or paste your own'
+	String get scoreHint => 'Taken from the recording, or paste your own';
+
+	/// en: 'Close'
+	String get modeClose => 'Close';
+
+	/// en: 'Free'
+	String get modeFree => 'Free';
+
+	/// en: 'Close keeps the melody and the chords.'
+	String get modeHintClose => 'Close keeps the melody and the chords.';
+
+	/// en: 'Free keeps the melody only.'
+	String get modeHintFree => 'Free keeps the melody only.';
+
+	/// en: 'Transcribe'
+	String get transcribe => 'Transcribe';
+
+	/// en: 'Transcribing, this takes about a minute.'
+	String get transcribing => 'Transcribing, this takes about a minute.';
+
+	/// en: 'Could not transcribe: $message. Check the file and try again.'
+	String transcribeFailed({required Object message}) => 'Could not transcribe: ${message}. Check the file and try again.';
+
+	/// en: 'Cover description'
+	String get styleTitle => 'Cover description';
+
+	/// en: 'The new mood and arrangement'
+	String get styleHint => 'The new mood and arrangement';
+
+	/// en: 'Italian, acoustic folk, warm female voice, fingerpicked guitar, 80 BPM'
+	String get stylePlaceholder => 'Italian, acoustic folk, warm female voice, fingerpicked guitar, 80 BPM';
+
+	/// en: 'Lyrics'
+	String get lyricsTitle => 'Lyrics';
+
+	/// en: 'Typed by you, in the order of the score's sections. They are not recognised from the recording.'
+	String get lyricsHint => 'Typed by you, in the order of the score\'s sections. They are not recognised from the recording.';
+
+	/// en: '[Verse] Write your lyrics here [Chorus] ...'
+	String get lyricsPlaceholder => '[Verse]\nWrite your lyrics here\n\n[Chorus]\n...';
+
+	/// en: 'Seed'
+	String get seed => 'Seed';
+
+	/// en: 'Random'
+	String get seedHint => 'Random';
+
+	/// en: 'About $time on this Mac'
+	String estimate({required Object time}) => 'About ${time} on this Mac';
+
+	/// en: 'Add to Queue'
+	String get generate => 'Add to Queue';
+
+	/// en: 'Added to the queue'
+	String get queued => 'Added to the queue';
+
+	/// en: 'Choose a recording first.'
+	String get needFile => 'Choose a recording first.';
+
+	/// en: 'Transcribe the recording or paste a score first.'
+	String get needScore => 'Transcribe the recording or paste a score first.';
+
+	/// en: 'Describe the new style first.'
+	String get needStyle => 'Describe the new style first.';
+
+	/// en: 'Write the lyrics first.'
+	String get needLyrics => 'Write the lyrics first.';
 }
 
 // Path: library
@@ -208,27 +317,228 @@ class Translations$library$en {
 
 	late final Translations$library$status$en status = Translations$library$status$en._(_root);
 	late final Translations$library$stage$en stage = Translations$library$stage$en._(_root);
+
+	/// en: 'Write a style and lyrics in Create, then add the song to the queue.'
+	String get emptyHint => 'Write a style and lyrics in Create, then add the song to the queue.';
+
+	/// en: 'Go to Create'
+	String get goCreate => 'Go to Create';
+
+	/// en: 'No liked songs yet'
+	String get emptyLiked => 'No liked songs yet';
+
+	/// en: 'Tap the heart on a song to keep it here.'
+	String get emptyLikedHint => 'Tap the heart on a song to keep it here.';
+
+	late final Translations$library$filter$en filter = Translations$library$filter$en._(_root);
+	late final Translations$library$col$en col = Translations$library$col$en._(_root);
+	late final Translations$library$menu$en menu = Translations$library$menu$en._(_root);
+
+	/// en: 'Play'
+	String get play => 'Play';
+
+	/// en: 'Pause'
+	String get pause => 'Pause';
+
+	/// en: 'Like'
+	String get like => 'Like';
+
+	/// en: 'Remove from Liked'
+	String get unlike => 'Remove from Liked';
+
+	/// en: 'Cover'
+	String get cover => 'Cover';
+
+	/// en: 'Delete "$title"?'
+	String deleteTitle({required Object title}) => 'Delete "${title}"?';
+
+	/// en: 'The audio and the score are removed from this Mac. This cannot be undone.'
+	String get deleteBody => 'The audio and the score are removed from this Mac. This cannot be undone.';
+
+	/// en: 'Delete'
+	String get deleteConfirm => 'Delete';
+
+	/// en: 'Cancel'
+	String get dismiss => 'Cancel';
+
+	/// en: 'Song title'
+	String get renameLabel => 'Song title';
+
+	/// en: 'Score'
+	String get scoreTitle => 'Score';
+
+	/// en: 'Close'
+	String get close => 'Close';
+
+	/// en: 'This song has no score.'
+	String get noScore => 'This song has no score.';
+
+	/// en: 'Could not export the audio: $message'
+	String exportFailed({required Object message}) => 'Could not export the audio: ${message}';
+
+	/// en: 'Today, $time'
+	String today({required Object time}) => 'Today, ${time}';
+
+	/// en: 'Yesterday'
+	String get yesterday => 'Yesterday';
 }
 
-// Path: setup.step
-class Translations$setup$step$en {
-	Translations$setup$step$en._(this._root);
+// Path: score
+class Translations$score$en {
+	Translations$score$en._(this._root);
 
 	final Translations _root; // ignore: unused_field
 
 	// Translations
 
-	/// en: 'Waiting'
-	String get pending => 'Waiting';
+	/// en: 'Notation'
+	String get notation => 'Notation';
 
-	/// en: 'Working'
-	String get running => 'Working';
+	/// en: 'Text'
+	String get text => 'Text';
+
+	/// en: 'No score yet. Transcribe a recording or paste ABC text.'
+	String get empty => 'No score yet. Transcribe a recording or paste ABC text.';
+
+	/// en: 'Notation preview is not available here, showing the text.'
+	String get unavailable => 'Notation preview is not available here, showing the text.';
+
+	/// en: 'Paste an ABC score here'
+	String get placeholder => 'Paste an ABC score here';
+}
+
+// Path: player
+class Translations$player$en {
+	Translations$player$en._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Nothing playing'
+	String get empty => 'Nothing playing';
+
+	/// en: 'Previous'
+	String get previous => 'Previous';
+
+	/// en: 'Next'
+	String get next => 'Next';
+
+	/// en: 'Play'
+	String get play => 'Play';
+
+	/// en: 'Pause'
+	String get pause => 'Pause';
+
+	/// en: 'Like'
+	String get like => 'Like';
+
+	/// en: 'Remove from Liked'
+	String get unlike => 'Remove from Liked';
+}
+
+// Path: generation
+class Translations$generation$en {
+	Translations$generation$en._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Score'
+	String get stageScore => 'Score';
+
+	/// en: 'Melody'
+	String get stageMelody => 'Melody';
+
+	/// en: 'Sound'
+	String get stageSound => 'Sound';
+
+	/// en: 'Master'
+	String get stageMaster => 'Master';
+
+	/// en: 'Starting'
+	String get starting => 'Starting';
+
+	/// en: 'Loading model'
+	String get loading => 'Loading model';
+
+	/// en: 'Planning score, $n tokens'
+	String planning({required Object n}) => 'Planning score, ${n} tokens';
+
+	/// en: 'Composing melody, $n tokens'
+	String composing({required Object n}) => 'Composing melody, ${n} tokens';
+
+	/// en: 'Rendering sound, step $done of $total'
+	String rendering({required Object done, required Object total}) => 'Rendering sound, step ${done} of ${total}';
+
+	/// en: 'Mastering, step $done of $total'
+	String mastering({required Object done, required Object total}) => 'Mastering, step ${done} of ${total}';
+
+	/// en: 'Mastering'
+	String get masteringNoStep => 'Mastering';
 
 	/// en: 'Done'
 	String get done => 'Done';
 
-	/// en: 'Failed'
-	String get failed => 'Failed';
+	/// en: 'About $time left'
+	String timeLeft({required Object time}) => 'About ${time} left';
+
+	/// en: 'Cancel'
+	String get cancel => 'Cancel';
+
+	/// en: 'Cancelling'
+	String get cancelling => 'Cancelling';
+
+	/// en: 'Nothing is being generated.'
+	String get idle => 'Nothing is being generated.';
+
+	/// en: 'a few seconds'
+	String get fewSeconds => 'a few seconds';
+
+	/// en: '$s s'
+	String durSec({required Object s}) => '${s} s';
+
+	/// en: '$m min'
+	String durMin({required Object m}) => '${m} min';
+
+	/// en: '$m min $s s'
+	String durMinSec({required Object m, required Object s}) => '${m} min ${s} s';
+}
+
+// Path: shell
+class Translations$shell$en {
+	Translations$shell$en._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+	late final Translations$shell$brand$en brand = Translations$shell$brand$en._(_root);
+	late final Translations$shell$nav$en nav = Translations$shell$nav$en._(_root);
+	late final Translations$shell$queue$en queue = Translations$shell$queue$en._(_root);
+	late final Translations$shell$stage$en stage = Translations$shell$stage$en._(_root);
+	late final Translations$shell$time$en time = Translations$shell$time$en._(_root);
+}
+
+// Path: setup.phase
+class Translations$setup$phase$en {
+	Translations$setup$phase$en._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Connecting'
+	String get connecting => 'Connecting';
+
+	/// en: 'Installing Python'
+	String get python => 'Installing Python';
+
+	/// en: 'Creating environment'
+	String get venv => 'Creating environment';
+
+	/// en: 'Installing packages'
+	String get packages => 'Installing packages';
 }
 
 // Path: library.status
@@ -279,6 +589,189 @@ class Translations$library$stage$en {
 	String get transcribe => 'Transcribing';
 }
 
+// Path: library.filter
+class Translations$library$filter$en {
+	Translations$library$filter$en._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'All'
+	String get all => 'All';
+
+	/// en: 'Liked'
+	String get liked => 'Liked';
+}
+
+// Path: library.col
+class Translations$library$col$en {
+	Translations$library$col$en._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Title'
+	String get title => 'Title';
+
+	/// en: 'Created'
+	String get created => 'Created';
+
+	/// en: 'Length'
+	String get length => 'Length';
+}
+
+// Path: library.menu
+class Translations$library$menu$en {
+	Translations$library$menu$en._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Rename'
+	String get rename => 'Rename';
+
+	/// en: 'Reuse Style and Lyrics'
+	String get reuse => 'Reuse Style and Lyrics';
+
+	/// en: 'Export Audio'
+	String get export => 'Export Audio';
+
+	/// en: 'Show Score'
+	String get score => 'Show Score';
+
+	/// en: 'Delete'
+	String get delete => 'Delete';
+
+	/// en: 'Cancel Job'
+	String get cancel => 'Cancel Job';
+
+	/// en: 'More actions'
+	String get more => 'More actions';
+}
+
+// Path: shell.brand
+class Translations$shell$brand$en {
+	Translations$shell$brand$en._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'YuE'
+	String get main => 'YuE';
+
+	/// en: '2'
+	String get sup => '2';
+
+	/// en: 'Studio'
+	String get studio => 'Studio';
+}
+
+// Path: shell.nav
+class Translations$shell$nav$en {
+	Translations$shell$nav$en._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Create'
+	String get create => 'Create';
+
+	/// en: 'Cover'
+	String get cover => 'Cover';
+
+	/// en: 'Library'
+	String get libraryGroup => 'Library';
+
+	/// en: 'All Songs'
+	String get allSongs => 'All Songs';
+
+	/// en: 'Liked'
+	String get liked => 'Liked';
+}
+
+// Path: shell.queue
+class Translations$shell$queue$en {
+	Translations$shell$queue$en._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Nothing in the queue'
+	String get idle => 'Nothing in the queue';
+
+	/// en: 'Starting'
+	String get starting => 'Starting';
+
+	/// en: '$stage, step $done of $total'
+	String step({required Object stage, required Object done, required Object total}) => '${stage}, step ${done} of ${total}';
+
+	/// en: '$n queued'
+	String queued({required Object n}) => '${n} queued';
+
+	/// en: 'About $time left'
+	String remaining({required Object time}) => 'About ${time} left';
+
+	/// en: 'Cancelled'
+	String get cancelled => 'Cancelled';
+
+	/// en: 'The engine failed to start: $message'
+	String engineFailed({required Object message}) => 'The engine failed to start: ${message}';
+
+	/// en: 'The engine did not produce a score.'
+	String get noScore => 'The engine did not produce a score.';
+}
+
+// Path: shell.stage
+class Translations$shell$stage$en {
+	Translations$shell$stage$en._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Loading the model'
+	String get load => 'Loading the model';
+
+	/// en: 'Writing the score'
+	String get abc => 'Writing the score';
+
+	/// en: 'Composing the melody'
+	String get semantic => 'Composing the melody';
+
+	/// en: 'Rendering sound'
+	String get nar => 'Rendering sound';
+
+	/// en: 'Mastering'
+	String get vae => 'Mastering';
+
+	/// en: 'Reading the recording'
+	String get transcribe => 'Reading the recording';
+}
+
+// Path: shell.time
+class Translations$shell$time$en {
+	Translations$shell$time$en._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: '$m min $s s'
+	String minSec({required Object m, required Object s}) => '${m} min ${s} s';
+
+	/// en: '$m min'
+	String min({required Object m}) => '${m} min';
+
+	/// en: '$s s'
+	String sec({required Object s}) => '${s} s';
+}
+
 /// The flat map containing all translations for locale <en>.
 /// Only for edge cases! For simple maps, use the map function of this library.
 ///
@@ -292,37 +785,72 @@ extension on Translations {
 			'nav.create' => 'Create',
 			'nav.cover' => 'Cover',
 			'nav.library' => 'Library',
-			'setup.title' => 'Set up YuE2 Studio',
-			'setup.intro' => 'The engine and the models are downloaded once into a private folder. Nothing outside it is touched.',
+			'setup.titlePre' => 'Setting up YuE',
+			'setup.titlePost' => ' Studio',
+			'setup.subtitle' => 'Your private-first music generation studio. Music is generated locally.',
 			'setup.install' => 'Install',
-			'setup.resume' => 'Resume',
 			'setup.retry' => 'Retry',
 			'setup.installing' => 'Installing...',
-			'setup.done' => 'All set',
-			'setup.licence' => 'Model weights are licensed CC BY-NC 4.0 and used with the permission of their creators. Non-commercial use only.',
-			'setup.disk' => ({required Object size}) => 'Needs about ${size} of free disk space.',
-			'setup.noDisk' => ({required Object need, required Object free}) => 'Not enough free disk space: ${need} needed, ${free} available.',
-			'setup.failed' => ({required Object message}) => 'Step failed: ${message}',
-			'setup.step.pending' => 'Waiting',
-			'setup.step.running' => 'Working',
-			'setup.step.done' => 'Done',
-			'setup.step.failed' => 'Failed',
+			'setup.totalDownload' => 'Total download',
+			'setup.progress' => ({required Object done, required Object total}) => '${done} of ${total}',
+			'setup.noDisk' => ({required Object need, required Object free}) => 'Not enough free disk space. Setup needs ${need} and only ${free} is available. Free up space, then press Retry.',
+			'setup.failed' => 'Failed',
+			'setup.fine' => 'Unofficial client, not affiliated with the YuE2 authors.',
+			'setup.phase.connecting' => 'Connecting',
+			'setup.phase.python' => 'Installing Python',
+			'setup.phase.venv' => 'Creating environment',
+			'setup.phase.packages' => 'Installing packages',
 			'create.title' => 'Create',
 			'create.style' => 'Style',
-			'create.styleHint' => 'English, warm piano pop, expressive female voice, 88 BPM',
+			'create.styleHint' => 'Genre, instruments, voice, language, tempo',
+			'create.stylePlaceholder' => 'English, warm piano pop, expressive female voice, acoustic piano, 88 BPM',
 			'create.lyrics' => 'Lyrics',
-			'create.lyricsHint' => '[Verse]\nWrite your lyrics here\n\n[Chorus]\n...',
-			'create.plan' => 'Symbolic plan',
-			'create.planFull' => 'Full',
+			'create.lyricsHint' => 'Use [Verse] and [Chorus].',
+			'create.lyricsPlaceholder' => '[Verse]\nWrite your lyrics here\n\n[Chorus]\n...',
+			'create.plan' => 'Plan',
+			'create.planFull' => 'Melody + chords',
 			'create.planMelody' => 'Melody',
-			'create.planOff' => 'Off',
+			'create.planOff' => 'None',
 			'create.seed' => 'Seed',
-			'create.seedHint' => 'Random',
-			'create.generate' => 'Generate',
-			'create.queued' => 'Added to the library',
+			'create.seedHint' => 'random',
+			'create.estimate' => ({required Object time}) => 'About ${time} on this Mac',
+			'create.generate' => 'Add to Queue',
 			'create.untitled' => 'Untitled',
 			'cover.title' => 'Cover',
-			'cover.soon' => 'Cover is coming soon.',
+			'cover.pick' => 'Choose a recording',
+			'cover.pickHint' => 'A wav, flac, mp3 or ogg file to cover.',
+			'cover.pickDialog' => 'Audio',
+			'cover.replace' => 'Replace',
+			'cover.remove' => 'Remove',
+			'cover.noFile' => 'No recording yet',
+			'cover.meta' => ({required Object size, required Object length, required Object state}) => '${size} · ${length} · ${state}',
+			'cover.stateIdle' => 'not transcribed',
+			'cover.stateWorking' => 'transcribing',
+			'cover.stateReady' => 'score ready',
+			'cover.scoreTitle' => 'Score',
+			'cover.scoreHint' => 'Taken from the recording, or paste your own',
+			'cover.modeClose' => 'Close',
+			'cover.modeFree' => 'Free',
+			'cover.modeHintClose' => 'Close keeps the melody and the chords.',
+			'cover.modeHintFree' => 'Free keeps the melody only.',
+			'cover.transcribe' => 'Transcribe',
+			'cover.transcribing' => 'Transcribing, this takes about a minute.',
+			'cover.transcribeFailed' => ({required Object message}) => 'Could not transcribe: ${message}. Check the file and try again.',
+			'cover.styleTitle' => 'Cover description',
+			'cover.styleHint' => 'The new mood and arrangement',
+			'cover.stylePlaceholder' => 'Italian, acoustic folk, warm female voice, fingerpicked guitar, 80 BPM',
+			'cover.lyricsTitle' => 'Lyrics',
+			'cover.lyricsHint' => 'Typed by you, in the order of the score\'s sections. They are not recognised from the recording.',
+			'cover.lyricsPlaceholder' => '[Verse]\nWrite your lyrics here\n\n[Chorus]\n...',
+			'cover.seed' => 'Seed',
+			'cover.seedHint' => 'Random',
+			'cover.estimate' => ({required Object time}) => 'About ${time} on this Mac',
+			'cover.generate' => 'Add to Queue',
+			'cover.queued' => 'Added to the queue',
+			'cover.needFile' => 'Choose a recording first.',
+			'cover.needScore' => 'Transcribe the recording or paste a score first.',
+			'cover.needStyle' => 'Describe the new style first.',
+			'cover.needLyrics' => 'Write the lyrics first.',
 			'library.title' => 'Library',
 			'library.empty' => 'No songs yet. Create one.',
 			'library.status.queued' => 'Queued',
@@ -335,6 +863,95 @@ extension on Translations {
 			'library.stage.nar' => 'Rendering',
 			'library.stage.vae' => 'Decoding',
 			'library.stage.transcribe' => 'Transcribing',
+			'library.emptyHint' => 'Write a style and lyrics in Create, then add the song to the queue.',
+			'library.goCreate' => 'Go to Create',
+			'library.emptyLiked' => 'No liked songs yet',
+			'library.emptyLikedHint' => 'Tap the heart on a song to keep it here.',
+			'library.filter.all' => 'All',
+			'library.filter.liked' => 'Liked',
+			'library.col.title' => 'Title',
+			'library.col.created' => 'Created',
+			'library.col.length' => 'Length',
+			'library.menu.rename' => 'Rename',
+			'library.menu.reuse' => 'Reuse Style and Lyrics',
+			'library.menu.export' => 'Export Audio',
+			'library.menu.score' => 'Show Score',
+			'library.menu.delete' => 'Delete',
+			'library.menu.cancel' => 'Cancel Job',
+			'library.menu.more' => 'More actions',
+			'library.play' => 'Play',
+			'library.pause' => 'Pause',
+			'library.like' => 'Like',
+			'library.unlike' => 'Remove from Liked',
+			'library.cover' => 'Cover',
+			'library.deleteTitle' => ({required Object title}) => 'Delete "${title}"?',
+			'library.deleteBody' => 'The audio and the score are removed from this Mac. This cannot be undone.',
+			'library.deleteConfirm' => 'Delete',
+			'library.dismiss' => 'Cancel',
+			'library.renameLabel' => 'Song title',
+			'library.scoreTitle' => 'Score',
+			'library.close' => 'Close',
+			'library.noScore' => 'This song has no score.',
+			'library.exportFailed' => ({required Object message}) => 'Could not export the audio: ${message}',
+			'library.today' => ({required Object time}) => 'Today, ${time}',
+			'library.yesterday' => 'Yesterday',
+			'score.notation' => 'Notation',
+			'score.text' => 'Text',
+			'score.empty' => 'No score yet. Transcribe a recording or paste ABC text.',
+			'score.unavailable' => 'Notation preview is not available here, showing the text.',
+			'score.placeholder' => 'Paste an ABC score here',
+			'player.empty' => 'Nothing playing',
+			'player.previous' => 'Previous',
+			'player.next' => 'Next',
+			'player.play' => 'Play',
+			'player.pause' => 'Pause',
+			'player.like' => 'Like',
+			'player.unlike' => 'Remove from Liked',
+			'generation.stageScore' => 'Score',
+			'generation.stageMelody' => 'Melody',
+			'generation.stageSound' => 'Sound',
+			'generation.stageMaster' => 'Master',
+			'generation.starting' => 'Starting',
+			'generation.loading' => 'Loading model',
+			'generation.planning' => ({required Object n}) => 'Planning score, ${n} tokens',
+			'generation.composing' => ({required Object n}) => 'Composing melody, ${n} tokens',
+			'generation.rendering' => ({required Object done, required Object total}) => 'Rendering sound, step ${done} of ${total}',
+			'generation.mastering' => ({required Object done, required Object total}) => 'Mastering, step ${done} of ${total}',
+			'generation.masteringNoStep' => 'Mastering',
+			'generation.done' => 'Done',
+			'generation.timeLeft' => ({required Object time}) => 'About ${time} left',
+			'generation.cancel' => 'Cancel',
+			'generation.cancelling' => 'Cancelling',
+			'generation.idle' => 'Nothing is being generated.',
+			'generation.fewSeconds' => 'a few seconds',
+			'generation.durSec' => ({required Object s}) => '${s} s',
+			'generation.durMin' => ({required Object m}) => '${m} min',
+			'generation.durMinSec' => ({required Object m, required Object s}) => '${m} min ${s} s',
+			'shell.brand.main' => 'YuE',
+			'shell.brand.sup' => '2',
+			'shell.brand.studio' => 'Studio',
+			'shell.nav.create' => 'Create',
+			'shell.nav.cover' => 'Cover',
+			'shell.nav.libraryGroup' => 'Library',
+			'shell.nav.allSongs' => 'All Songs',
+			'shell.nav.liked' => 'Liked',
+			'shell.queue.idle' => 'Nothing in the queue',
+			'shell.queue.starting' => 'Starting',
+			'shell.queue.step' => ({required Object stage, required Object done, required Object total}) => '${stage}, step ${done} of ${total}',
+			'shell.queue.queued' => ({required Object n}) => '${n} queued',
+			'shell.queue.remaining' => ({required Object time}) => 'About ${time} left',
+			'shell.queue.cancelled' => 'Cancelled',
+			'shell.queue.engineFailed' => ({required Object message}) => 'The engine failed to start: ${message}',
+			'shell.queue.noScore' => 'The engine did not produce a score.',
+			'shell.stage.load' => 'Loading the model',
+			'shell.stage.abc' => 'Writing the score',
+			'shell.stage.semantic' => 'Composing the melody',
+			'shell.stage.nar' => 'Rendering sound',
+			'shell.stage.vae' => 'Mastering',
+			'shell.stage.transcribe' => 'Reading the recording',
+			'shell.time.minSec' => ({required Object m, required Object s}) => '${m} min ${s} s',
+			'shell.time.min' => ({required Object m}) => '${m} min',
+			'shell.time.sec' => ({required Object s}) => '${s} s',
 			_ => null,
 		};
 	}

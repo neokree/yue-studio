@@ -5,11 +5,15 @@ python sheetsage_wrap.py <audio> --model-dir <dir> --output <dir> [--melody-only
 Runs inside the SheetSage2 venv (torch 2.8.0, transformers 4.45.2, soundfile).
 SheetSage2's load_audio() only shells out to ffmpeg for path/bytes input; a
 waveform + sampling_rate takes the pure-torch path (mono mix + torchaudio resample).
+Offline: HF_HUB_OFFLINE=1 and local_files_only (MERT loads from the HF cache at the revision SheetSage2's config pins).
 Writes <output>/score.abc like infer.py. Exit 1 + message on stderr on failure.
 """
 import argparse
+import os
 import sys
 from pathlib import Path
+
+os.environ["HF_HUB_OFFLINE"] = "1"  # setup already fetched SheetSage2 and the pinned MERT snapshot: never hit the network here
 
 
 def main():
@@ -38,7 +42,7 @@ def main():
         device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
     else:
         device = a.device
-    model = AutoModel.from_pretrained(str(a.model_dir), trust_remote_code=True).eval().to(device)
+    model = AutoModel.from_pretrained(str(a.model_dir), trust_remote_code=True, local_files_only=True).eval().to(device)
 
     def progress(v):
         if v["stage"] == "encoding":

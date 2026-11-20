@@ -1,11 +1,32 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
+import '../brand/yue_logo.dart';
 import '../i18n/strings.g.dart';
 import '../theme/tokens.dart';
 import 'installer.dart';
+import 'manifest.dart';
 
-String _gb(int bytes) => '${(bytes / 1e9).toStringAsFixed(1)} GB';
+/// "507 MB", "6.8 GB" (decimal units, as the manifest and Hugging Face count them).
+String formatBytes(int bytes) => bytes >= 1e9 ? '${(bytes / 1e9).toStringAsFixed(1)} GB' : '${(bytes / 1e6).round()} MB';
 
+/// "3.1 of 6.8 GB": both numbers in the unit of the total.
+String formatProgress(int done, int total) {
+  if (total >= 1e9) return t.setup.progress(done: (done / 1e9).toStringAsFixed(1), total: formatBytes(total));
+  return t.setup.progress(done: (done / 1e6).round().toString(), total: formatBytes(total));
+}
+
+const _tabular = [FontFeature.tabularFigures()];
+
+String _phaseLabel(String? phase) => switch (phase) {
+      'python' => t.setup.phase.python,
+      'venv' => t.setup.phase.venv,
+      'packages' => t.setup.phase.packages,
+      _ => t.setup.phase.connecting,
+    };
+
+/// First run (DESIGN.md screen 1): no sidebar, one 520 wide column.
 class SetupScreen extends StatelessWidget {
   const SetupScreen({super.key, required this.installer});
   final Installer installer;
@@ -13,107 +34,278 @@ class SetupScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = AppColors.of(context);
-    final theme = Theme.of(context);
+    final tertiary = c.textTertiary;
     return Scaffold(
-      body: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: Layout.contentMaxWidth),
-          child: ListenableBuilder(
-            listenable: installer,
-            builder: (context, _) => ListView(
-              padding: const EdgeInsets.all(Space.xl),
-              children: [
-                Text(t.setup.title, style: theme.textTheme.titleLarge),
-                const SizedBox(height: Space.sm),
-                Text(t.setup.intro, style: theme.textTheme.bodyMedium),
-                const SizedBox(height: Space.lg),
-                for (final step in installer.manifest.steps) _StepRow(label: step.label, state: installer.states[step.id]!),
-                const SizedBox(height: Space.lg),
-                if (installer.diskShort case final d?)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: Space.md),
-                    child: Text(t.setup.noDisk(need: _gb(d.need), free: _gb(d.free)), style: TextStyle(color: c.error)),
-                  )
-                else if (installer.manifest.bytes > 0)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: Space.md),
-                    child: Text(t.setup.disk(size: _gb(installer.manifest.bytes)), style: theme.textTheme.bodySmall),
-                  ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: FilledButton(
-                    key: const Key('setup.install'),
-                    onPressed: installer.running ? null : installer.install,
-                    child: Text(installer.running
-                        ? t.setup.installing
-                        : installer.failed
-                            ? t.setup.retry
-                            : installer.started
-                                ? t.setup.resume
-                                : t.setup.install),
-                  ),
-                ),
-                const SizedBox(height: Space.xl),
-                Text(t.setup.licence, style: theme.textTheme.bodySmall),
-                const SizedBox(height: Space.sm),
-                Text(t.app.unofficial, style: theme.textTheme.bodySmall),
-              ],
+      backgroundColor: c.background,
+      body: Stack(
+        children: [
+          Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(30, 30, 30, 48),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: ListenableBuilder(listenable: installer, builder: (context, _) => _Column(installer: installer)),
+              ),
             ),
           ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 14,
+            child: Text(
+              t.setup.fine,
+              key: const Key('setup.fine'),
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 8.5, color: tertiary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Column extends StatelessWidget {
+  const _Column({required this.installer});
+  final Installer installer;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppColors.of(context);
+    final tertiary = c.textTertiary;
+    final steps = installer.manifest.steps;
+    final label = installer.running
+        ? t.setup.installing
+        : installer.failed
+            ? t.setup.retry
+            : t.setup.install;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        YueLogo(size: 64, color: c.accent),
+        const SizedBox(height: 14),
+        _Title(color: c.text, accent: c.accent),
+        const SizedBox(height: 6),
+        Text(t.setup.subtitle, style: TextStyle(fontSize: 14, color: c.textSecondary)),
+        const SizedBox(height: 22),
+        for (final s in steps) _StepRow(key: ValueKey('setup.step.${s.id}'), step: s, installer: installer),
+        const SizedBox(height: 22),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(t.setup.totalDownload, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.text)),
+            Text(
+              formatProgress(installer.downloadedBytes, installer.totalBytes),
+              key: const Key('setup.total'),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.text, fontFeatures: _tabular),
+            ),
+          ],
         ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(2),
+          child: LinearProgressIndicator(
+            key: const Key('setup.bar'),
+            value: installer.overall,
+            minHeight: 4,
+            color: c.accent,
+            backgroundColor: c.divider,
+          ),
+        ),
+        const SizedBox(height: 20),
+        if (installer.diskShort case final d?)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(
+              t.setup.noDisk(need: formatBytes(d.need), free: formatBytes(d.free)),
+              key: const Key('setup.error'),
+              style: TextStyle(fontSize: 13, color: c.error),
+            ),
+          ),
+        if (!installer.complete)
+          FilledButton(
+            key: const Key('setup.install'),
+            onPressed: installer.running ? null : installer.install,
+            style: FilledButton.styleFrom(
+              backgroundColor: c.accent,
+              foregroundColor: c.onAccent,
+              disabledBackgroundColor: c.accent.withValues(alpha: 0.45),
+              disabledForegroundColor: c.onAccent.withValues(alpha: 0.8),
+              minimumSize: const Size(0, 34),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              textStyle: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: tertiary),
+            ),
+            child: Text(label),
+          ),
+      ],
+    );
+  }
+}
+
+/// "Setting up YuE² Studio": the 2 is a superscript at ~62%, bold, in the accent colour.
+class _Title extends StatelessWidget {
+  const _Title({required this.color, required this.accent});
+  final Color color, accent;
+
+  @override
+  Widget build(BuildContext context) {
+    const size = 26.0;
+    final base = TextStyle(fontSize: size, fontWeight: FontWeight.w700, letterSpacing: -0.5, color: color);
+    return Semantics(
+      header: true,
+      label: '${t.setup.titlePre}2${t.setup.titlePost}',
+      excludeSemantics: true,
+      child: Text.rich(
+        key: const Key('setup.title'),
+        TextSpan(style: base, children: [
+          TextSpan(text: t.setup.titlePre),
+          WidgetSpan(
+            alignment: PlaceholderAlignment.top,
+            child: Text('2', style: base.copyWith(fontSize: size * 0.62, color: accent, height: 1.0)),
+          ),
+          TextSpan(text: t.setup.titlePost),
+        ]),
       ),
     );
   }
 }
 
 class _StepRow extends StatelessWidget {
-  const _StepRow({required this.label, required this.state});
-  final String label;
-  final SetupStepState state;
+  const _StepRow({super.key, required this.step, required this.installer});
+  final SetupStep step;
+  final Installer installer;
 
   @override
   Widget build(BuildContext context) {
     final c = AppColors.of(context);
-    final theme = Theme.of(context);
-    final (icon, color) = switch (state.status) {
-      StepStatus.pending => (Icons.circle_outlined, c.textSecondary),
-      StepStatus.running => (Icons.downloading, c.accent),
-      StepStatus.done => (Icons.check_circle, c.success),
-      StepStatus.failed => (Icons.error, c.error),
+    final tertiary = c.textTertiary;
+    final st = installer.states[step.id]!;
+    final running = st.status == StepStatus.running;
+    final failed = st.status == StepStatus.failed;
+    final bytes = installer.weightOf(step);
+    final size = step.bytes > 0 ? formatBytes(bytes) : null;
+    final right = switch (st.status) {
+      StepStatus.running when st.doneBytes != null && st.totalBytes != null => formatProgress(st.doneBytes!, st.totalBytes!),
+      StepStatus.running => _phaseLabel(st.phase),
+      StepStatus.failed => t.setup.failed,
+      _ => size ?? '',
     };
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: Space.sm),
+    final sub = failed ? st.error : (running && step.kind != 'hf' ? st.detail : null);
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: c.divider))),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, size: 18, color: color),
-              const SizedBox(width: Space.sm),
-              Expanded(child: Text(label, style: theme.textTheme.bodyMedium)),
-              Text(switch (state.status) {
-                StepStatus.pending => t.setup.step.pending,
-                StepStatus.running => state.progress == null ? t.setup.step.running : '${(state.progress! * 100).round()}%',
-                StepStatus.done => t.setup.step.done,
-                StepStatus.failed => t.setup.step.failed,
-              }, style: theme.textTheme.bodySmall),
+              SizedBox(width: 22, child: Align(alignment: Alignment.centerLeft, child: _Dot(status: st.status, accent: c.accent, error: c.error, idle: tertiary))),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(step.label, style: TextStyle(fontSize: 13, fontWeight: running ? FontWeight.w600 : FontWeight.w400, color: c.text)),
+              ),
+              Text(right, style: TextStyle(fontSize: 12, color: failed ? c.error : tertiary, fontFeatures: _tabular)),
             ],
           ),
-          if (state.status == StepStatus.running) ...[
-            const SizedBox(height: Space.xs),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(Radii.sm),
-              child: LinearProgressIndicator(value: state.progress, color: c.accent, backgroundColor: c.selection),
-            ),
-          ],
-          if (state.status == StepStatus.failed && state.error != null)
+          if (sub != null && sub.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: Space.xs),
-              child: Text(t.setup.failed(message: state.error!), style: theme.textTheme.bodySmall?.copyWith(color: c.error), maxLines: 6, overflow: TextOverflow.ellipsis),
+              padding: const EdgeInsets.only(left: 32, top: 4),
+              child: Text(
+                sub,
+                key: Key(failed ? 'setup.step.error' : 'setup.step.detail'),
+                maxLines: failed ? 4 : 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12, color: failed ? c.error : tertiary),
+              ),
             ),
         ],
       ),
     );
   }
+}
+
+/// 16 px state dot: empty ring (pending), spinning arc (running), filled (done), error ring (failed).
+class _Dot extends StatefulWidget {
+  const _Dot({required this.status, required this.accent, required this.error, required this.idle});
+  final StepStatus status;
+  final Color accent, error, idle;
+
+  @override
+  State<_Dot> createState() => _DotState();
+}
+
+class _DotState extends State<_Dot> with SingleTickerProviderStateMixin {
+  late final AnimationController _spin = AnimationController(vsync: this, duration: const Duration(seconds: 1));
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(_Dot old) {
+    super.didUpdateWidget(old);
+    _sync();
+  }
+
+  // Reduce Motion: a static arc, no spin.
+  void _sync() {
+    final spin = widget.status == StepStatus.running && !MediaQuery.disableAnimationsOf(context);
+    if (spin && !_spin.isAnimating) {
+      _spin.repeat();
+    } else if (!spin && _spin.isAnimating) {
+      _spin.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _spin.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => RepaintBoundary(
+        child: AnimatedBuilder(
+          animation: _spin,
+          builder: (_, _) => CustomPaint(
+            size: const Size.square(16),
+            painter: _DotPainter(widget.status, widget.accent, widget.error, widget.idle, _spin.value),
+          ),
+        ),
+      );
+}
+
+class _DotPainter extends CustomPainter {
+  _DotPainter(this.status, this.accent, this.error, this.idle, this.turn);
+  final StepStatus status;
+  final Color accent, error, idle;
+  final double turn;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final stroke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round
+      ..isAntiAlias = true;
+    final r = size.width / 2 - 0.75;
+    switch (status) {
+      case StepStatus.pending:
+        canvas.drawCircle(center, r, stroke..color = idle);
+      case StepStatus.done:
+        canvas.drawCircle(center, size.width / 2, Paint()..color = accent);
+      case StepStatus.failed:
+        canvas.drawCircle(center, r, stroke..color = error);
+      case StepStatus.running:
+        canvas.drawArc(Rect.fromCircle(center: center, radius: r), turn * 2 * math.pi, math.pi * 1.5, false, stroke..color = accent);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DotPainter o) => o.status != status || o.turn != turn || o.accent != accent || o.idle != idle || o.error != error;
 }

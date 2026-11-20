@@ -27,7 +27,7 @@ Dart (`lib/engine/`) and Python (`engine/`) both follow this file. Change it her
 |---|---|
 | `ready` | `version` (1), `fake` (bool). Sent once, after start; the model is NOT loaded yet (loads lazily on first generate, reported as stage `load`). |
 | `progress` | `job`, `stage`, `done` (int), `total` (int or null) |
-| `result` | `job`, `dir` (absolute), `audio` (file name inside dir, generate only: `audio.flac` real, `audio.wav` fake), `seed` (int, generate only), `duration` (seconds, float, generate only) |
+| `result` | `job`, `dir` (absolute), `audio` (file name inside dir, generate only: `audio.flac` real, `audio.wav` fake), `seed` (int, generate only), `duration` (seconds, float, generate only), `timings` (generate only, additive: `{"load","abc","semantic","nar","vae"}` wall seconds per stage, floats; 0 for a stage that did not run, e.g. `load` when the model was already loaded, `abc` when `cot=off` or `abc` was given; for the `GenerationEstimator`) |
 | `error` | `job` (null if not tied to a job), `message`, `cancelled` (bool, true when the job ended because of `cancel`) |
 
 Stages, in order:
@@ -35,7 +35,17 @@ Stages, in order:
 - transcribe: `transcribe` (total null; one event when it starts, one per ~2 s heartbeat with elapsed seconds in `done`).
 - Token-count stages emit at most one event per 25 tokens.
 
+Fake mode emits `timings` too: measured wall time of its own (short) stages.
+
 Measured real durations for a 70 s song on an M4 Pro (to animate progress when total is null): load ~20 s first time, abc 17 s, semantic 55 s, nar 80 s, vae 4 s. Transcribe ~63 s.
+
+### Offline guarantee (real mode)
+
+After setup the sidecar never touches the network. `Yue2Backend` sets `HF_HUB_OFFLINE=1` itself (the app does not need to), loads `m-a-p/YuE2-3B` and `m-a-p/YuE2-Vae` with `local_files_only=True` at the exact revisions pinned in the manifest (`YUE2_STUDIO_MANIFEST`, else `<engine>/manifests/real.json`), and `sheetsage_wrap.py` does the same for SheetSage2 and for MERT (the revision pinned in SheetSage2's config). A missing model therefore fails with an `error` ("Run setup again"), it never downloads. The `fetch.py` setup steps are the only network users, and they must run WITHOUT `HF_HUB_OFFLINE`.
+
+### Engine code layout
+
+`sidecar.py` only does the protocol (parsing, one-job-at-a-time, cancel, events). The engine is a `Backend` in `backends.py` (`load`, `generate(request, on_progress, cancelled) -> result fields`, `transcribe(...)`): `FakeBackend` and `Yue2Backend`. Swap or add a class there to change engine; the protocol does not change.
 
 ## 4. Output folder
 
