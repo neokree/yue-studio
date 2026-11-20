@@ -24,10 +24,10 @@ class Services {
     CreateDraft? createDraft,
     GenerationEstimator? estimator,
     PlayerController? player,
-  })  : nav = nav ?? ValueNotifier(Section.create),
-        createDraft = createDraft ?? CreateDraft(),
-        estimator = estimator ?? queue.estimator,
-        player = player ?? PlayerController(library: library) {
+  }) : nav = nav ?? ValueNotifier(Section.create),
+       createDraft = createDraft ?? CreateDraft(),
+       estimator = estimator ?? queue.estimator,
+       player = player ?? PlayerController(library: library) {
     this.createDraft.onPrefill = () => this.nav.value = Section.create;
   }
 

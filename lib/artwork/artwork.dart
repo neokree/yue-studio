@@ -136,6 +136,8 @@ class ArtworkPainter extends CustomPainter {
     final c = Offset(p.cx * s, p.cy * s);
     switch (p.motif) {
       case Motif.rings:
+        // 40 px thumbnails need a real line weight, a hairline vanishes against the gradient.
+        stroke.strokeWidth = math.max(s / 60, 1.5);
         for (var i = 1; i <= n; i++) {
           canvas.drawCircle(c, s * i / n * .9, stroke);
         }
@@ -155,7 +157,7 @@ class ArtworkPainter extends CustomPainter {
           }
         }
       case Motif.waves:
-        stroke.strokeWidth = math.max(s / 60, .75);
+        stroke.strokeWidth = math.max(s / 50, 1.5);
         final freq = 1.5 + p.angle / math.pi * 2;
         final amp = s * .05;
         for (var i = 1; i <= n; i++) {

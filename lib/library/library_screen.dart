@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
 import '../artwork/artwork_view.dart';
+import '../brand/yue_logo.dart';
 import '../i18n/strings.g.dart';
 import '../player/player_bar.dart' show formatClock;
 import '../player/player_controller.dart';
@@ -31,9 +32,9 @@ String formatDate(DateTime d, [DateTime? now]) {
 
 enum _Act { rename, reuse, export, score, delete, cancel }
 
-// Column proportions Title 45 / Created 22 / Length 12 (flex), fixed art, like and menu cells, 20 px gutter before Created.
-const _fTitle = 45, _fCreated = 22, _fLength = 12;
-const _wArt = 52.0, _wGutter = 20.0, _wAction = 40.0, _wMore = 32.0;
+// Title takes the rest; Created, Length, like and menu are fixed and sit at the right edge. The table starts at the
+// screen title's 28 px edge (no row padding), 20 px gutter before Created.
+const _wCreated = 190.0, _wLength = 96.0, _wGutter = 20.0, _wAction = 40.0, _wMore = 32.0;
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({
@@ -75,6 +76,23 @@ class _LibraryScreenState extends State<LibraryScreen> {
         SongStatus.done => t.library.status.done,
         SongStatus.failed => t.library.status.failed,
       };
+
+  bool _isRunning(Song s) => s.status == SongStatus.generating && widget.queue.running?.id == s.id;
+
+  /// "Step 5 of 32" under the status of the running row.
+  String? _step(Song s) => _isRunning(s) && widget.queue.stage != null && widget.queue.stageTotal != null
+      ? t.library.step(done: widget.queue.stageDone, total: widget.queue.stageTotal!)
+      : null;
+
+  /// Length cell of a live row: time left for the running song, the estimate for a queued one.
+  String? _eta(Song s) {
+    if (_isRunning(s)) {
+      final r = widget.queue.remaining;
+      return r == null ? null : t.library.timeLeft(time: formatEta(r));
+    }
+    if (s.status == SongStatus.queued) return t.library.eta(time: formatEta(widget.queue.estimator.estimate(lyrics: s.request.lyrics)));
+    return null;
+  }
 
   /// Running first, then queued in run order, then everything else newest first.
   List<Song> _rows() {
@@ -225,6 +243,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
                             key: ValueKey('library.item.${s.id}'),
                             song: s,
                             status: _status(s),
+                            step: _step(s),
+                            eta: _eta(s),
+                            progress: _isRunning(s) ? widget.queue.progress : null,
                             isCurrent: current,
                             playing: current && widget.player.playing,
                             editing: _editing == s.id,
@@ -256,14 +277,14 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = TextStyle(fontSize: TypeSize.label, fontWeight: FontWeight.w600, color: AppColors.of(context).textSecondary);
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor))),
       child: Row(children: [
-        const SizedBox(width: _wArt),
-        Expanded(flex: _fTitle, child: Text(t.library.col.title, style: style)),
+        // The Title header spans artwork and title, so its left edge is the table's (and the screen title's) 28 px.
+        Expanded(child: Text(t.library.col.title, style: style)),
         const SizedBox(width: _wGutter),
-        Expanded(flex: _fCreated, child: Text(t.library.col.created, style: style)),
-        Expanded(flex: _fLength, child: Padding(padding: const EdgeInsets.only(right: 8), child: Text(t.library.col.length, maxLines: 1, softWrap: false, textAlign: TextAlign.right, style: style))),
+        SizedBox(width: _wCreated, child: Text(t.library.col.created, style: style)),
+        SizedBox(width: _wLength, child: Padding(padding: const EdgeInsets.only(right: 8), child: Text(t.library.col.length, maxLines: 1, softWrap: false, textAlign: TextAlign.right, style: style))),
         const SizedBox(width: _wAction + _wMore),
       ]),
     );
@@ -283,7 +304,8 @@ class _Empty extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(likedOnly ? Icons.favorite_border : Icons.library_music_outlined, size: 36, color: c.textSecondary),
+          // The app's own mark (not a generic Material glyph), in tertiary so it stays quiet.
+          if (likedOnly) Icon(Icons.favorite_border, size: 36, color: c.textTertiary) else YueLogo(size: 40, color: c.textTertiary),
           const SizedBox(height: 12),
           Text(likedOnly ? t.library.emptyLiked : t.library.empty, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
           const SizedBox(height: 4),
@@ -304,6 +326,9 @@ class _SongRow extends StatefulWidget {
     super.key,
     required this.song,
     required this.status,
+    this.step,
+    this.eta,
+    this.progress,
     required this.isCurrent,
     required this.playing,
     required this.editing,
@@ -318,6 +343,10 @@ class _SongRow extends StatefulWidget {
   });
   final Song song;
   final String status;
+
+  /// Live rows only: "Step 5 of 32", the time left / estimate, and 0..1 progress of the running song.
+  final String? step, eta;
+  final double? progress;
   final bool isCurrent, playing, editing;
   final VoidCallback onPlay, onLike, onRenameStart, onDelete;
   final void Function(String? title) onRenameDone;
@@ -345,119 +374,155 @@ class _SongRowState extends State<_SongRow> {
         ? s.error!
         : [if (s.kind == SongKind.cover) t.library.cover, shortStyle(s.request.style)].where((e) => e.isNotEmpty).join(' · ');
     final tab = const [FontFeature.tabularFigures()];
+    final w = widget;
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onSecondaryTapDown: (d) => widget.onContext(d.globalPosition),
+        onSecondaryTapDown: (d) => w.onContext(d.globalPosition),
         child: Container(
           height: 56,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: widget.isCurrent ? c.accent.withValues(alpha: .12) : Colors.transparent,
-            border: Border(bottom: BorderSide(color: theme.dividerColor)),
-          ),
-          child: Row(
+          // No fill for the song that is playing (that is what a selection would use): it gets an accent title and a badge on its artwork.
+          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: theme.dividerColor))),
+          child: Stack(
             children: [
-              SizedBox(
-                width: 40,
-                height: 40,
-                child: Stack(children: [
-                  ArtworkView(song: s, size: 40),
-                  if (done)
-                    Positioned.fill(
-                      child: AnimatedOpacity(
-                        duration: Motion.fast,
-                        opacity: _hover || widget.isCurrent ? 1 : 0,
-                        child: Material(
-                          color: const Color(0x73000000),
-                          borderRadius: BorderRadius.circular(6),
-                          child: IconButton(
-                            key: const Key('library.play'),
-                            padding: EdgeInsets.zero,
-                            iconSize: 24,
-                            color: Colors.white,
-                            tooltip: widget.playing ? t.library.pause : t.library.play,
-                            onPressed: widget.onPlay,
-                            icon: Icon(widget.playing ? Icons.pause_rounded : Icons.play_arrow_rounded),
+              Row(
+                children: [
+                  SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: Stack(clipBehavior: Clip.none, children: [
+                      ArtworkView(song: s, size: 40),
+                      if (done)
+                        Positioned.fill(
+                          child: AnimatedOpacity(
+                            duration: Motion.fast,
+                            opacity: _hover ? 1 : 0,
+                            child: Material(
+                              color: const Color(0x59000000),
+                              borderRadius: BorderRadius.circular(6),
+                              child: IconButton(
+                                key: const Key('library.play'),
+                                padding: EdgeInsets.zero,
+                                iconSize: 24,
+                                color: Colors.white,
+                                tooltip: w.playing ? t.library.pause : t.library.play,
+                                onPressed: w.onPlay,
+                                icon: Icon(w.playing ? Icons.pause_rounded : Icons.play_arrow_rounded),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                      if (w.isCurrent && !_hover)
+                        Positioned(
+                          key: const Key('library.nowplaying'),
+                          right: -4,
+                          bottom: -4,
+                          child: IgnorePointer(
+                            child: Container(
+                              width: 18,
+                              height: 18,
+                              decoration: BoxDecoration(color: c.accent, shape: BoxShape.circle, border: Border.all(color: c.background, width: 1.5)),
+                              child: Icon(w.playing ? Icons.graphic_eq_rounded : Icons.pause_rounded, size: 11, color: c.onAccent),
+                            ),
+                          ),
+                        ),
+                    ]),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (w.editing)
+                          _RenameField(initial: s.title, onDone: w.onRenameDone)
+                        else
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onDoubleTap: w.onRenameStart,
+                            child: Text(s.title, key: const Key('library.title'), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: w.isCurrent ? c.accent : null)),
+                          ),
+                        if (sub.isNotEmpty)
+                          Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: TypeSize.caption, color: failed ? err : c.textSecondary)),
+                      ],
                     ),
-                ]),
+                  ),
+                  const SizedBox(width: _wGutter),
+                  SizedBox(
+                    width: _wCreated,
+                    child: live
+                        // Running and queued: status in accent instead of a date, the step under it.
+                        ? Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(w.status, key: const Key('library.status'), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: TypeSize.body, fontWeight: FontWeight.w600, color: c.accent)),
+                              if (w.step != null) Text(w.step!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: TypeSize.caption, color: c.textTertiary, fontFeatures: tab)),
+                            ],
+                          )
+                        : Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Stack(children: [
+                                Text(formatDate(s.createdAt), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: TypeSize.body, color: c.textSecondary, fontFeatures: tab)),
+                                // ponytail: a finished row prints no status; this invisible label keeps Key('library.status') (e2e + screen readers).
+                                if (done) Positioned(left: 0, top: 0, child: IgnorePointer(child: Opacity(opacity: 0, child: Text(w.status, key: const Key('library.status'))))),
+                              ]),
+                              if (failed) Text(w.status, key: const Key('library.status'), style: TextStyle(fontSize: TypeSize.caption, color: err)),
+                            ],
+                          ),
+                  ),
+                  SizedBox(
+                    width: _wLength,
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: live
+                          // Time left (running) or the estimate (queued), so the column never reads as broken.
+                          ? Text(w.eta ?? '', key: const Key('library.eta'), maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.right, style: TextStyle(fontSize: TypeSize.caption, color: c.textTertiary, fontFeatures: tab))
+                          : Text(s.duration == null ? '' : formatClock(Duration(milliseconds: (s.duration! * 1000).round())), maxLines: 1, textAlign: TextAlign.right, style: TextStyle(fontSize: TypeSize.body, color: c.textSecondary, fontFeatures: tab)),
+                    ),
+                  ),
+                  SizedBox(
+                    width: _wAction,
+                    // A song that is not finished cannot be liked: the cell stays empty until it is.
+                    child: failed
+                        ? IconButton(key: const Key('library.delete'), iconSize: 18, tooltip: t.library.menu.delete, color: err, onPressed: w.onDelete, icon: const Icon(Icons.delete_outline))
+                        : live
+                            ? null
+                            : IconButton(
+                                key: const Key('library.like'),
+                                iconSize: 18,
+                                tooltip: s.liked ? t.library.unlike : t.library.like,
+                                color: s.liked ? c.accent : c.textSecondary,
+                                onPressed: w.onLike,
+                                icon: Icon(s.liked ? Icons.favorite : Icons.favorite_border),
+                              ),
+                  ),
+                  SizedBox(
+                    width: _wMore,
+                    child: PopupMenuButton<_Act>(
+                      key: const Key('library.more'),
+                      tooltip: t.library.menu.more,
+                      padding: EdgeInsets.zero,
+                      iconSize: 18,
+                      icon: Icon(Icons.more_horiz, color: c.textSecondary),
+                      itemBuilder: (_) => w.menuItems(),
+                      onSelected: w.onMenu,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: _fTitle,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (widget.editing)
-                      _RenameField(initial: s.title, onDone: widget.onRenameDone)
-                    else
-                      GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onDoubleTap: widget.onRenameStart,
-                        child: Text(s.title, key: const Key('library.title'), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                      ),
-                    if (sub.isNotEmpty)
-                      Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: TypeSize.caption, color: failed ? err : c.textSecondary)),
-                  ],
+              if (w.progress != null)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: 2,
+                  child: LinearProgressIndicator(key: const Key('library.progress'), value: w.progress!.clamp(0.0, 1.0), minHeight: 2, color: c.accent, backgroundColor: Colors.transparent),
                 ),
-              ),
-              const SizedBox(width: _wGutter),
-              Expanded(
-                flex: _fCreated,
-                child: live
-                    // Running and queued: status in accent instead of a date.
-                    ? Text(widget.status, key: const Key('library.status'), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: TypeSize.body, fontWeight: FontWeight.w600, color: c.accent))
-                    : Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Stack(children: [
-                            Text(formatDate(s.createdAt), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: TypeSize.body, color: c.textSecondary, fontFeatures: tab)),
-                            // ponytail: a finished row prints no status; this invisible label keeps Key('library.status') (e2e + screen readers).
-                            if (done) Positioned(left: 0, top: 0, child: IgnorePointer(child: Opacity(opacity: 0, child: Text(widget.status, key: const Key('library.status'))))),
-                          ]),
-                          if (failed) Text(widget.status, key: const Key('library.status'), style: TextStyle(fontSize: TypeSize.caption, color: err)),
-                        ],
-                      ),
-              ),
-              Expanded(
-                flex: _fLength,
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: Text(s.duration == null ? '' : formatClock(Duration(milliseconds: (s.duration! * 1000).round())), maxLines: 1, textAlign: TextAlign.right, style: TextStyle(fontSize: TypeSize.body, color: c.textSecondary, fontFeatures: tab)),
-                ),
-              ),
-              SizedBox(
-                width: _wAction,
-                child: failed
-                    ? IconButton(key: const Key('library.delete'), iconSize: 18, tooltip: t.library.menu.delete, color: err, onPressed: widget.onDelete, icon: const Icon(Icons.delete_outline))
-                    : IconButton(
-                        key: const Key('library.like'),
-                        iconSize: 18,
-                        tooltip: s.liked ? t.library.unlike : t.library.like,
-                        color: s.liked ? c.accent : c.textSecondary,
-                        onPressed: widget.onLike,
-                        icon: Icon(s.liked ? Icons.favorite : Icons.favorite_border),
-                      ),
-              ),
-              SizedBox(
-                width: _wMore,
-                child: PopupMenuButton<_Act>(
-                  key: const Key('library.more'),
-                  tooltip: t.library.menu.more,
-                  padding: EdgeInsets.zero,
-                  iconSize: 18,
-                  icon: Icon(Icons.more_horiz, color: c.textSecondary),
-                  itemBuilder: (_) => widget.menuItems(),
-                  onSelected: widget.onMenu,
-                ),
-              ),
             ],
           ),
         ),

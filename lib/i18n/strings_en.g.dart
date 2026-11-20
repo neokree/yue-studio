@@ -109,9 +109,6 @@ class Translations$setup$en {
 	/// en: 'Retry'
 	String get retry => 'Retry';
 
-	/// en: 'Installing...'
-	String get installing => 'Installing...';
-
 	/// en: 'Total download'
 	String get totalDownload => 'Total download';
 
@@ -121,8 +118,10 @@ class Translations$setup$en {
 	/// en: 'Not enough free disk space. Setup needs $need and only $free is available. Free up space, then press Retry.'
 	String noDisk({required Object need, required Object free}) => 'Not enough free disk space. Setup needs ${need} and only ${free} is available. Free up space, then press Retry.';
 
-	/// en: 'Failed'
-	String get failed => 'Failed';
+	/// en: 'Check again'
+	String get recheck => 'Check again';
+
+	late final Translations$setup$preflight$en preflight = Translations$setup$preflight$en._(_root);
 
 	/// en: 'Unofficial client, not affiliated with the YuE2 authors.'
 	String get fine => 'Unofficial client, not affiliated with the YuE2 authors.';
@@ -153,8 +152,8 @@ class Translations$create$en {
 	/// en: 'Title'
 	String get titleLabel => 'Title';
 
-	/// en: 'Optional. Left empty, the first lyric line is used.'
-	String get titleHint => 'Optional. Left empty, the first lyric line is used.';
+	/// en: 'Optional. Empty uses the first lyric line, or Untitled and the date.'
+	String get titleHint => 'Optional. Empty uses the first lyric line, or Untitled and the date.';
 
 	/// en: 'Style'
 	String get style => 'Style';
@@ -255,11 +254,8 @@ class Translations$cover$en {
 	/// en: 'Free'
 	String get modeFree => 'Free';
 
-	/// en: 'Close keeps the melody and the chords.'
-	String get modeHintClose => 'Close keeps the melody and the chords.';
-
-	/// en: 'Free keeps the melody only.'
-	String get modeHintFree => 'Free keeps the melody only.';
+	/// en: 'Free: melody only. Close: melody and chords.'
+	String get modeHint => 'Free: melody only. Close: melody and chords.';
 
 	/// en: 'Transcribe'
 	String get transcribe => 'Transcribe';
@@ -354,8 +350,8 @@ class Translations$library$en {
 	/// en: 'No liked songs yet'
 	String get emptyLiked => 'No liked songs yet';
 
-	/// en: 'Tap the heart on a song to keep it here.'
-	String get emptyLikedHint => 'Tap the heart on a song to keep it here.';
+	/// en: 'Tap the heart next to a song to like it. Liked songs appear here.'
+	String get emptyLikedHint => 'Tap the heart next to a song to like it. Liked songs appear here.';
 
 	late final Translations$library$filter$en filter = Translations$library$filter$en._(_root);
 	late final Translations$library$col$en col = Translations$library$col$en._(_root);
@@ -408,6 +404,15 @@ class Translations$library$en {
 
 	/// en: 'Yesterday'
 	String get yesterday => 'Yesterday';
+
+	/// en: 'Step $done of $total'
+	String step({required Object done, required Object total}) => 'Step ${done} of ${total}';
+
+	/// en: '$time left'
+	String timeLeft({required Object time}) => '${time} left';
+
+	/// en: 'About $time'
+	String eta({required Object time}) => 'About ${time}';
 }
 
 // Path: score
@@ -487,24 +492,6 @@ class Translations$generation$en {
 	/// en: 'Starting'
 	String get starting => 'Starting';
 
-	/// en: 'Loading model'
-	String get loading => 'Loading model';
-
-	/// en: 'Planning score, $pct%'
-	String planning({required Object pct}) => 'Planning score, ${pct}%';
-
-	/// en: 'Composing melody, $pct%'
-	String composing({required Object pct}) => 'Composing melody, ${pct}%';
-
-	/// en: 'Rendering sound, step $done of $total'
-	String rendering({required Object done, required Object total}) => 'Rendering sound, step ${done} of ${total}';
-
-	/// en: 'Mastering, step $done of $total'
-	String mastering({required Object done, required Object total}) => 'Mastering, step ${done} of ${total}';
-
-	/// en: 'Mastering'
-	String get masteringNoStep => 'Mastering';
-
 	/// en: 'Done'
 	String get done => 'Done';
 
@@ -537,6 +524,12 @@ class Translations$generation$en {
 
 	/// en: '$stage, done'
 	String stageDoneLabel({required Object stage}) => '${stage}, done';
+
+	/// en: '$stage, $pct%'
+	String statusPct({required Object stage, required Object pct}) => '${stage}, ${pct}%';
+
+	/// en: '$stage, step $done of $total'
+	String statusStep({required Object stage, required Object done, required Object total}) => '${stage}, step ${done} of ${total}';
 }
 
 // Path: shell
@@ -551,6 +544,30 @@ class Translations$shell$en {
 	late final Translations$shell$queue$en queue = Translations$shell$queue$en._(_root);
 	late final Translations$shell$stage$en stage = Translations$shell$stage$en._(_root);
 	late final Translations$shell$time$en time = Translations$shell$time$en._(_root);
+}
+
+// Path: setup.preflight
+class Translations$setup$preflight$en {
+	Translations$setup$preflight$en._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'This Mac has an Intel processor. YuE2 Studio needs a Mac with Apple Silicon (M1 or later).'
+	String get intel => 'This Mac has an Intel processor. YuE2 Studio needs a Mac with Apple Silicon (M1 or later).';
+
+	/// en: 'This Mac runs macOS $have. YuE2 Studio needs macOS $need or later.'
+	String macos({required Object have, required Object need}) => 'This Mac runs macOS ${have}. YuE2 Studio needs macOS ${need} or later.';
+
+	/// en: 'This Mac has $have of memory. YuE2 Studio needs at least $need.'
+	String memory({required Object have, required Object need}) => 'This Mac has ${have} of memory. YuE2 Studio needs at least ${need}.';
+
+	/// en: 'Only $have of disk space is free. Setup needs at least $need free. Free up space, then press Check again.'
+	String disk({required Object have, required Object need}) => 'Only ${have} of disk space is free. Setup needs at least ${need} free. Free up space, then press Check again.';
+
+	/// en: 'This Mac has $have of memory. It works, but close other apps while generating.'
+	String warnMemory({required Object have}) => 'This Mac has ${have} of memory. It works, but close other apps while generating.';
 }
 
 // Path: setup.phase
@@ -768,14 +785,14 @@ class Translations$shell$stage$en {
 
 	// Translations
 
-	/// en: 'Loading the model'
-	String get load => 'Loading the model';
+	/// en: 'Loading model'
+	String get load => 'Loading model';
 
-	/// en: 'Writing the score'
-	String get abc => 'Writing the score';
+	/// en: 'Planning score'
+	String get abc => 'Planning score';
 
-	/// en: 'Composing the melody'
-	String get semantic => 'Composing the melody';
+	/// en: 'Composing melody'
+	String get semantic => 'Composing melody';
 
 	/// en: 'Rendering sound'
 	String get nar => 'Rendering sound';
@@ -783,8 +800,8 @@ class Translations$shell$stage$en {
 	/// en: 'Mastering'
 	String get vae => 'Mastering';
 
-	/// en: 'Reading the recording'
-	String get transcribe => 'Reading the recording';
+	/// en: 'Transcribing'
+	String get transcribe => 'Transcribing';
 }
 
 // Path: shell.time
@@ -823,11 +840,15 @@ extension on Translations {
 			'setup.subtitle' => 'Your private-first music generation studio. Music is generated locally.',
 			'setup.install' => 'Install',
 			'setup.retry' => 'Retry',
-			'setup.installing' => 'Installing...',
 			'setup.totalDownload' => 'Total download',
 			'setup.progress' => ({required Object done, required Object total}) => '${done} of ${total}',
 			'setup.noDisk' => ({required Object need, required Object free}) => 'Not enough free disk space. Setup needs ${need} and only ${free} is available. Free up space, then press Retry.',
-			'setup.failed' => 'Failed',
+			'setup.recheck' => 'Check again',
+			'setup.preflight.intel' => 'This Mac has an Intel processor. YuE2 Studio needs a Mac with Apple Silicon (M1 or later).',
+			'setup.preflight.macos' => ({required Object have, required Object need}) => 'This Mac runs macOS ${have}. YuE2 Studio needs macOS ${need} or later.',
+			'setup.preflight.memory' => ({required Object have, required Object need}) => 'This Mac has ${have} of memory. YuE2 Studio needs at least ${need}.',
+			'setup.preflight.disk' => ({required Object have, required Object need}) => 'Only ${have} of disk space is free. Setup needs at least ${need} free. Free up space, then press Check again.',
+			'setup.preflight.warnMemory' => ({required Object have}) => 'This Mac has ${have} of memory. It works, but close other apps while generating.',
 			'setup.fine' => 'Unofficial client, not affiliated with the YuE2 authors.',
 			'setup.phase.connecting' => 'Connecting',
 			'setup.phase.python' => 'Installing Python',
@@ -838,7 +859,7 @@ extension on Translations {
 			'setup.recovery' => 'Check your internet connection and free disk space, then press Retry. Finished steps are kept and setup continues from here.',
 			'create.title' => 'Create',
 			'create.titleLabel' => 'Title',
-			'create.titleHint' => 'Optional. Left empty, the first lyric line is used.',
+			'create.titleHint' => 'Optional. Empty uses the first lyric line, or Untitled and the date.',
 			'create.style' => 'Style',
 			'create.styleHint' => 'Genre, instruments, voice, language, tempo',
 			'create.stylePlaceholder' => 'English, warm piano pop, expressive female voice, acoustic piano, 88 BPM',
@@ -869,8 +890,7 @@ extension on Translations {
 			'cover.scoreHint' => 'From the recording, or paste your own',
 			'cover.modeClose' => 'Close',
 			'cover.modeFree' => 'Free',
-			'cover.modeHintClose' => 'Close keeps the melody and the chords.',
-			'cover.modeHintFree' => 'Free keeps the melody only.',
+			'cover.modeHint' => 'Free: melody only. Close: melody and chords.',
 			'cover.transcribe' => 'Transcribe',
 			'cover.transcribing' => 'Transcribing, this takes about a minute.',
 			'cover.transcribeFailed' => ({required Object message}) => 'Could not transcribe: ${message}. Check the file and try again.',
@@ -908,7 +928,7 @@ extension on Translations {
 			'library.emptyHint' => 'Write a style and lyrics in Create, then add the song to the queue.',
 			'library.goCreate' => 'Go to Create',
 			'library.emptyLiked' => 'No liked songs yet',
-			'library.emptyLikedHint' => 'Tap the heart on a song to keep it here.',
+			'library.emptyLikedHint' => 'Tap the heart next to a song to like it. Liked songs appear here.',
 			'library.filter.all' => 'All',
 			'library.filter.liked' => 'Liked',
 			'library.col.title' => 'Title',
@@ -937,6 +957,9 @@ extension on Translations {
 			'library.exportFailed' => ({required Object message}) => 'Could not export the audio: ${message}',
 			'library.today' => ({required Object time}) => 'Today, ${time}',
 			'library.yesterday' => 'Yesterday',
+			'library.step' => ({required Object done, required Object total}) => 'Step ${done} of ${total}',
+			'library.timeLeft' => ({required Object time}) => '${time} left',
+			'library.eta' => ({required Object time}) => 'About ${time}',
 			'score.notation' => 'Notation',
 			'score.text' => 'Text',
 			'score.empty' => 'No score yet. Transcribe a recording or paste ABC text.',
@@ -954,12 +977,6 @@ extension on Translations {
 			'generation.stageSound' => 'Sound',
 			'generation.stageMaster' => 'Master',
 			'generation.starting' => 'Starting',
-			'generation.loading' => 'Loading model',
-			'generation.planning' => ({required Object pct}) => 'Planning score, ${pct}%',
-			'generation.composing' => ({required Object pct}) => 'Composing melody, ${pct}%',
-			'generation.rendering' => ({required Object done, required Object total}) => 'Rendering sound, step ${done} of ${total}',
-			'generation.mastering' => ({required Object done, required Object total}) => 'Mastering, step ${done} of ${total}',
-			'generation.masteringNoStep' => 'Mastering',
 			'generation.done' => 'Done',
 			'generation.timeLeft' => ({required Object status, required Object time}) => '${status} · about ${time} left',
 			'generation.cancel' => 'Cancel',
@@ -971,6 +988,8 @@ extension on Translations {
 			'generation.durMinSec' => ({required Object m, required Object s}) => '${m} min ${s} s',
 			'generation.timeLeftFew' => ({required Object status}) => '${status} · a few seconds left',
 			'generation.stageDoneLabel' => ({required Object stage}) => '${stage}, done',
+			'generation.statusPct' => ({required Object stage, required Object pct}) => '${stage}, ${pct}%',
+			'generation.statusStep' => ({required Object stage, required Object done, required Object total}) => '${stage}, step ${done} of ${total}',
 			'shell.brand.main' => 'YuE',
 			'shell.brand.sup' => '2',
 			'shell.brand.studio' => 'Studio',
@@ -987,12 +1006,12 @@ extension on Translations {
 			'shell.queue.cancelled' => 'Cancelled',
 			'shell.queue.engineFailed' => ({required Object message}) => 'The engine failed to start: ${message}',
 			'shell.queue.noScore' => 'The engine did not produce a score.',
-			'shell.stage.load' => 'Loading the model',
-			'shell.stage.abc' => 'Writing the score',
-			'shell.stage.semantic' => 'Composing the melody',
+			'shell.stage.load' => 'Loading model',
+			'shell.stage.abc' => 'Planning score',
+			'shell.stage.semantic' => 'Composing melody',
 			'shell.stage.nar' => 'Rendering sound',
 			'shell.stage.vae' => 'Mastering',
-			'shell.stage.transcribe' => 'Reading the recording',
+			'shell.stage.transcribe' => 'Transcribing',
 			'shell.time.minSec' => ({required Object m, required Object s}) => '${m} min ${s} s',
 			'shell.time.min' => ({required Object m}) => '${m} min',
 			'shell.time.sec' => ({required Object s}) => '${s} s',

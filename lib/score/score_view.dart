@@ -161,11 +161,10 @@ class _ScoreViewState extends State<ScoreView> {
   void _changed() {
     final text = widget.controller.text;
     if (text == _last) return;
-    final wasEmpty = _last.trim().isEmpty;
     _last = text;
-    // A score that arrives while the editor is not being typed in (a transcription) shows as notation.
+    // A score that arrives while the editor is not being typed in (a transcription) shows as notation,
+    // also when it replaces an earlier score. Without a WebView (Linux) the text view stays.
     if (_hasWeb &&
-        wasEmpty &&
         text.trim().isNotEmpty &&
         !_focus.hasFocus &&
         !_notation &&

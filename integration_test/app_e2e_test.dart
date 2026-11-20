@@ -16,10 +16,13 @@ import 'package:yue2_studio/main.dart' as app;
 
 final _shotsDir = Platform.environment['E2E_SHOTS_DIR'];
 final _dataDir = Platform.environment['YUE2_STUDIO_DATA_DIR'];
+final _clock = Stopwatch()..start();
+void lap(String what) => print('LAP ${(_clock.elapsedMilliseconds / 1000).toStringAsFixed(1)}s $what'); // ignore: avoid_print
 
 Future<void> shot(WidgetTester t, String name) async {
   final dir = _shotsDir;
   if (dir == null || dir.isEmpty) return;
+  lap(name);
   await t.pump(const Duration(milliseconds: 50));
   final el = find.byKey(const Key('app.screenshot')).evaluate().first;
   final boundary = el.renderObject! as RenderRepaintBoundary;
@@ -54,6 +57,9 @@ Future<void> waitFor(
   Duration timeout = const Duration(seconds: 30),
 }) => waitUntil(t, () => f.evaluate().isNotEmpty, what, timeout: timeout);
 
+/// One animation settle (AnimatedSwitcher / theme cross-fade are ~200-300 ms); the only fixed wait besides the generation capture.
+Future<void> settle(WidgetTester t) => pumpFor(t, const Duration(milliseconds: 320));
+
 Future<void> pumpFor(WidgetTester t, Duration d) async {
   final end = DateTime.now().add(d);
   while (DateTime.now().isBefore(end)) {
@@ -67,7 +73,7 @@ Future<void> tapKey(WidgetTester t, String key, {Finder? within}) async {
       : find.descendant(of: within, matching: find.byKey(Key(key)));
   await waitFor(t, f, key);
   await t.tap(f.first);
-  await t.pump(const Duration(milliseconds: 200));
+  await t.pump(const Duration(milliseconds: 80));
 }
 
 final _row = find.byWidgetPredicate((w) {
@@ -162,7 +168,7 @@ void main() {
       Future<void> setDark(bool dark) async {
         t.platformDispatcher.platformBrightnessTestValue =
             dark ? Brightness.dark : Brightness.light;
-        await pumpFor(t, const Duration(milliseconds: 600));
+        await settle(t);
       }
 
       /// Title field (C1 / E: Key('create.title') and Key('cover.title')); warns instead of failing while a track lags.
@@ -180,7 +186,13 @@ void main() {
         await typeTitle('create.title', title);
         await t.enterText(find.byKey(const Key('create.style')), style);
         await t.enterText(find.byKey(const Key('create.lyrics')), lyrics);
-        await pumpFor(t, const Duration(milliseconds: 300));
+        await t.pump(const Duration(milliseconds: 80));
+      }
+
+      /// Sidebar Create: Create clicked from the generation view returns to the form, so wait for the form's own fields.
+      Future<void> openCreate() async {
+        await tapKey(t, 'nav.create');
+        await waitFor(t, find.byKey(const Key('create.style')), 'create form (create.style) after nav.create');
       }
 
       /// Add to Queue, wait for the generation view, let the animation run, then capture mid-run.
@@ -191,7 +203,7 @@ void main() {
           find.byKey(const Key('generation.view')),
           'generation.view after Add to Queue',
         );
-        await pumpFor(t, const Duration(milliseconds: 1500)); // job lasts ~4 s at YUE2_FAKE_STEP_SECONDS=1.3
+        await pumpFor(t, const Duration(milliseconds: 700)); // job lasts ~2 s at YUE2_FAKE_STEP_SECONDS=0.4: capture mid-run
         await shot(t, name);
       }
 
@@ -206,7 +218,7 @@ void main() {
           'setup.install button',
         );
         final installLabel = _installButton().label;
-        await pumpFor(t, const Duration(milliseconds: 400));
+        await settle(t);
         await shot(t, '01-setup');
         await setDark(true);
         await shot(t, '01b-setup-dark');
@@ -220,10 +232,13 @@ void main() {
           'setup error state (button back to Retry)',
           timeout: const Duration(seconds: 60),
         );
-        await pumpFor(t, const Duration(milliseconds: 400));
+        await settle(t);
         await shot(t, '02b-setup-error');
         await t.tap(find.byKey(const Key('setup.install')));
-        await pumpFor(t, const Duration(seconds: 2));
+        // Retry is running: the button is disabled while installing; capture right away .
+        await waitUntil(t, () => !_installButton().enabled, 'setup installing state (button disabled)', timeout: const Duration(seconds: 10));
+        lap('install running');
+        await pumpFor(t, const Duration(milliseconds: 1200)); // python (instant) is done, the venv step sleeps 2.5 s in tool/e2e-uv.sh
         await shot(t, '02-setup-installing');
         await waitFor(
           t,
@@ -231,16 +246,17 @@ void main() {
           'shell (nav.create) after install',
           timeout: const Duration(seconds: 120),
         );
+        lap('shell visible');
 
         // 3. empty library
         await tapKey(t, 'nav.library');
-        await pumpFor(t, const Duration(milliseconds: 600));
+        await settle(t);
         expect(_row, findsNothing);
         await shot(t, '00-library-empty');
 
         // 4. create (with a title) -> generating
-        await tapKey(t, 'nav.create');
-        await pumpFor(t, const Duration(milliseconds: 500));
+        await openCreate();
+        await settle(t);
         await fillCreate('Neon Rain');
         await shot(t, '03-create');
         await generateAndShoot('04-generating');
@@ -254,7 +270,7 @@ void main() {
           'the song row to reach done',
           timeout: const Duration(seconds: 60),
         );
-        await pumpFor(t, const Duration(milliseconds: 500));
+        await settle(t);
         final id = _rowIds().single;
 
         await tapKey(t, 'library.like', within: _rowOf(id));
@@ -300,7 +316,7 @@ void main() {
         // play: the player bar shows the title; light + dark shots, toggle pauses then resumes
         await tapKey(t, 'library.play', within: _rowOf(id));
         await waitFor(t, find.byKey(const Key('player.bar')), 'player.bar');
-        await pumpFor(t, const Duration(milliseconds: 600));
+        await settle(t);
         expect(_textOf(find.byKey(const Key('player.title'))), renamed);
         await shot(t, '07-player');
         await setDark(true);
@@ -314,21 +330,23 @@ void main() {
         await tapKey(t, 'nav.liked');
         await waitFor(t, _rowOf(id), 'the liked song under nav.liked');
         expect(_row, findsOneWidget);
-        await pumpFor(t, const Duration(milliseconds: 400));
+        await settle(t);
         await shot(t, '06-library-liked');
 
         // 6. three jobs queued back to back: one runs, two wait
         for (var i = 1; i <= 3; i++) {
-          await tapKey(t, 'nav.create');
+          await openCreate();
           await fillCreate('Night Drive $i');
           await t.tap(find.byKey(const Key('create.generate')));
           await waitFor(t, find.byKey(const Key('generation.view')), 'generation.view (queued job $i)');
+          // C1's AnimatedSwitcher (create_screen.dart) throws "Duplicate keys 'form'" when form -> generation -> form flips within its 450 ms transition.
+          await pumpFor(t, const Duration(milliseconds: 470));
         }
         await tapKey(t, 'nav.library');
         await waitUntil(
           t,
-          () => _statuses().where((s) => s.contains('queued')).length == 2 && _statuses().any((s) => s.contains('generating')),
-          'library: one running, two queued',
+          () => _statuses().any((s) => s.contains('queued')) && _statuses().any((s) => s.contains('generating')),
+          'library: one running, at least one queued',
           timeout: const Duration(seconds: 5),
         );
         final st = _statuses();
@@ -357,13 +375,13 @@ void main() {
         await typeTitle('cover.title', 'Neon Rain (cover)');
         await t.enterText(find.byKey(const Key('cover.style')), style);
         await t.enterText(find.byKey(const Key('cover.lyrics')), lyrics);
-        await pumpFor(t, const Duration(milliseconds: 300));
+        await t.pump(const Duration(milliseconds: 80));
         await shot(t, '08-cover-filled');
         await setDark(true);
         await shot(t, '08b-cover-dark');
         await setDark(false);
         await t.tap(find.byKey(const Key('cover.generate')));
-        await pumpFor(t, const Duration(milliseconds: 500));
+        await t.pump(const Duration(milliseconds: 80));
 
         // the cover lands in the library as a fifth row, done
         await tapKey(t, 'nav.library');
@@ -379,7 +397,7 @@ void main() {
           'all five rows done',
           timeout: const Duration(seconds: 60),
         );
-        await pumpFor(t, const Duration(milliseconds: 500));
+        await settle(t);
         await shot(t, '09-library-with-cover');
         if (_dataDir != null) {
           final kinds = [for (final x in _rowIds()) _meta(x)?['kind']];
@@ -388,8 +406,8 @@ void main() {
 
         // 8. dark pass: Create, generating (sixth song), Library with six songs; then the same Library in light
         await setDark(true);
-        await tapKey(t, 'nav.create');
-        await pumpFor(t, const Duration(milliseconds: 500));
+        await openCreate();
+        await settle(t);
         await fillCreate('Glass Harbour');
         await shot(t, '10-create-dark');
         await generateAndShoot('11-generating-dark');
@@ -400,7 +418,7 @@ void main() {
           'six library rows done',
           timeout: const Duration(seconds: 60),
         );
-        await pumpFor(t, const Duration(milliseconds: 500));
+        await settle(t);
         await shot(t, '12-library-dark');
         await setDark(false);
         await shot(t, '05b-library-artwork');

@@ -1,17 +1,112 @@
-# yue2_studio
+# YuE² Studio
 
-A new Flutter project.
+YuE² Studio is an unofficial macOS app for the YuE2 open music model. It turns a style and lyrics into a song. It also turns an uploaded recording into a cover.
 
-## Getting Started
+The app is not affiliated with the YuE2 authors. Everything runs on your Mac. The first run downloads the engine and the models. After that, generation runs locally and does not need the network.
 
-This project is a starting point for a Flutter application.
+The interface is in English.
 
-A few resources to get you started if this is your first Flutter project:
+## What it does
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+- **Create**: write a style and lyrics, then generate a song.
+- **Cover**: upload a recording (wav, flac, mp3 or ogg) and generate a new version in the style and lyrics you choose. You type the lyrics yourself. The app does not recognise lyrics in the recording.
+- **Library**: keep every song. Play, like, rename, delete and export the audio. Reuse the style and lyrics of a song in Create. Queue more songs while one is generating.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## System requirements
+
+Minimum:
+
+- Mac with Apple Silicon (Intel Macs are not supported)
+- macOS 14 or later
+- 16 GB of memory
+- 15 GB of free disk space
+- Internet connection for the first run
+
+Recommended:
+
+- 24 GB of memory
+- 25 GB of free disk space
+
+The app checks these before it downloads anything. It stops on an Intel Mac, on macOS older than 14, with less than 16 GB of memory, or with less than 15 GB of free disk space. With exactly 16 GB of memory it runs, but it asks you to close other apps while generating.
+
+On Macs with less than 24 GB of memory, the app unloads the song model before a Cover transcription and loads it again afterwards.
+
+## Install
+
+1. Open `YuE2-Studio-<version>.dmg`.
+2. Drag **YuE2 Studio** into the **Applications** folder.
+3. Open the app from Applications. See the next section the first time.
+
+## Opening the app the first time
+
+The app is ad-hoc signed and is not notarized by Apple. macOS blocks it the first time you open it. Use one of these steps.
+
+**System Settings:**
+
+1. Try to open the app once. macOS shows a warning.
+2. Open **System Settings**, then **Privacy & Security**.
+3. Find the message about "YuE2 Studio" and click **Open Anyway**. Enter your password if asked.
+
+**Right-click:** on some macOS versions you can right-click the app in Applications and choose **Open**. If that does not work, use the System Settings steps.
+
+**Terminal:** this removes the quarantine flag that macOS adds to downloaded apps. Run it only on the copy you installed from the dmg.
+
+```
+xattr -dr com.apple.quarantine "/Applications/YuE2 Studio.app"
+```
+
+## First run
+
+On first launch the app runs a preflight check, then installs everything it needs:
+
+- The engine, its Python environment and all models, including the models for Cover. The total download is about 10 to 11 GB.
+- Progress for each step.
+- A free disk space check before the download starts.
+- Resume. If the download stops, start the app again and setup continues from the last finished step.
+- Retry. If a step fails, press retry on that step.
+
+Setup shows the licence note for the model weights and the unofficial notice.
+
+All downloaded files go to this folder:
+
+```
+~/Library/Application Support/YuE2 Studio
+```
+
+Your songs are in the `library` folder inside it.
+
+## Uninstall
+
+1. Quit the app.
+2. Delete **YuE2 Studio** from Applications.
+3. Delete the folder `~/Library/Application Support/YuE2 Studio`.
+
+Step 3 also deletes all your songs and the models. Export the songs you want to keep before you delete the folder.
+
+## Licences
+
+- **App code**: TBD.
+- **Model weights**: CC BY-NC 4.0. The creators gave permission to use them in this app. The licence allows non-commercial use only.
+- **abcjs** (score rendering): MIT licence, Copyright (c) 2009-2024 Paul Rosen and Gregory Dyke.
+- **uv** (Python environment manager, bundled): used under its own licence. See the uv project for the terms.
+
+## Development
+
+Requirements: Flutter through `fvm`, version 3.44.3 (pinned in `.fvmrc`). Docker for the end-to-end test. Apple Silicon Mac for the real engine run.
+
+```
+fvm use 3.44.3                                  # only if .fvmrc is missing
+tool/fetch_uv.sh                                # pinned uv into assets/uv, sha256 checked
+docker build -t yue2-studio-test:3.44.3 docker  # once, not per run
+```
+
+Python is run only through `uv`. The app keeps its downloads in its own data folder and does not use the Hugging Face cache.
+
+Scripts in `tool/`:
+
+- `tool/test.sh [--only unit|py|e2e]` runs three layers. Unit and widget tests with `fvm flutter test` (60 s budget). Sidecar tests with pytest through `uv` (20 s budget). The end-to-end test in Docker on Linux with Xvfb (3 min budget). Screenshots go to `build/e2e-shots/`. The first e2e run compiles the Linux app and gets 10 minutes.
+- `tool/real_engine.sh [--fresh] [data dir]` runs the real engine on an Apple Silicon Mac. It downloads the models, then generates one song, one transcription and one cover. Default data dir: `.scratch/real-data`. `--fresh` wipes it first. Log: `.scratch/real-engine.log`.
+- `tool/make_dmg.sh` builds the release app, signs it ad-hoc and writes `dist/YuE2-Studio-<version>.dmg`. It publishes nothing.
+- `tool/fetch_uv.sh [--force]` downloads the pinned uv for Apple Silicon, checks its sha256 and writes `assets/uv/uv`. That file is gitignored.
+
+The engine protocol is in `engine/PROTOCOL.md`.

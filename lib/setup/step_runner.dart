@@ -41,21 +41,22 @@ class ProcessStepRunner implements StepRunner {
     final raw = step.raw;
     if (_failStep == step.id) {
       _failStep = null;
-      throw SetupException('Network connection lost (simulated by YUE2_STUDIO_TEST_FAIL_STEP).');
+      throw SetupException('The connection was interrupted.');
     }
     // Hermetic: no user uv config, and no python launcher links outside the data dir (uv defaults to ~/.local/bin).
     final env = {...ProcessEngine.environmentFor(paths), 'UV_NO_CONFIG': '1', 'UV_PYTHON_BIN_DIR': p.join(paths.dataDir, 'bin')};
     switch (step.kind) {
       case 'python':
         report(phase: 'python');
-        await _exec(paths.uv, ['python', 'install', '--no-bin', raw['version'] as String], env, report);
+        await _withGrowth(step, report, () => _exec(paths.uv, ['python', 'install', '--no-bin', raw['version'] as String], env, report));
       case 'venv':
         final venv = p.join(paths.dataDir, 'venvs', raw['name'] as String);
         report(phase: 'venv');
-        await _exec(paths.uv, ['venv', venv, '--python', raw['python'] as String, '--clear'], env, report);
-        final packages = [...?(raw['packages'] as List?)?.cast<String>()];
-        final req = raw['requirements'] as String?;
-        if (packages.isNotEmpty || req != null) {
+        await _withGrowth(step, report, () async {
+          await _exec(paths.uv, ['venv', venv, '--python', raw['python'] as String, '--clear'], env, report);
+          final packages = [...?(raw['packages'] as List?)?.cast<String>()];
+          final req = raw['requirements'] as String?;
+          if (packages.isEmpty && req == null) return;
           report(phase: 'packages', detail: '');
           await _exec(
             paths.uv,
@@ -67,7 +68,7 @@ class ProcessStepRunner implements StepRunner {
             env,
             report,
           );
-        }
+        });
       case 'hf':
         final local = raw['local_dir'] as String?;
         report(phase: 'connecting');
@@ -86,6 +87,49 @@ class ProcessStepRunner implements StepRunner {
       default:
         throw SetupException('Unknown setup step "${step.kind}".');
     }
+  }
+
+  /// uv prints no byte counts, so the row's "x of y" follows how much the uv cache and Python folders grew while the step ran,
+  /// kept below the total until the step really ends (unpacking counts too).
+  // ponytail: disk growth stands in for download progress; exact numbers would need uv to report them.
+  Future<void> _withGrowth(SetupStep step, StepReport report, Future<void> Function() body) async {
+    final total = step.bytes;
+    if (total <= 0) return body();
+    report(progress: 0, doneBytes: 0, totalBytes: total);
+    final dirs = [p.join(paths.dataDir, 'uv-cache'), p.join(paths.dataDir, 'uv-python')];
+    final base = await _size(dirs);
+    var alive = true, busy = false, best = 0;
+    final timer = Timer.periodic(const Duration(seconds: 1), (_) async {
+      if (busy) return;
+      busy = true;
+      try {
+        final grown = ((await _size(dirs)) - base).clamp(best, (total * 0.97).floor());
+        if (alive && grown > best) {
+          best = grown;
+          report(progress: grown / total, doneBytes: grown, totalBytes: total);
+        }
+      } finally {
+        busy = false;
+      }
+    });
+    try {
+      await body();
+    } finally {
+      alive = false;
+      timer.cancel();
+    }
+  }
+
+  Future<int> _size(List<String> dirs) async {
+    var sum = 0;
+    for (final d in dirs) {
+      try {
+        await for (final e in Directory(d).list(recursive: true, followLinks: false)) {
+          if (e is File) sum += await e.length().catchError((_) => 0);
+        }
+      } catch (_) {} // folder missing yet, or a file vanished mid-scan
+    }
+    return sum;
   }
 
   /// [json]: stdout lines are fetch.py events; everything else is shown as a detail line.

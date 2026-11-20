@@ -14,11 +14,17 @@
     "subtitle": "Your private-first music generation studio. Music is generated locally.",
     "install": "Install",
     "retry": "Retry",
-    "installing": "Installing...",
     "totalDownload": "Total download",
     "progress": "$done of $total",
     "noDisk": "Not enough free disk space. Setup needs $need and only $free is available. Free up space, then press Retry.",
-    "failed": "Failed",
+    "recheck": "Check again",
+    "preflight": {
+      "intel": "This Mac has an Intel processor. YuE2 Studio needs a Mac with Apple Silicon (M1 or later).",
+      "macos": "This Mac runs macOS $have. YuE2 Studio needs macOS $need or later.",
+      "memory": "This Mac has $have of memory. YuE2 Studio needs at least $need.",
+      "disk": "Only $have of disk space is free. Setup needs at least $need free. Free up space, then press Check again.",
+      "warnMemory": "This Mac has $have of memory. It works, but close other apps while generating."
+    },
     "fine": "Unofficial client, not affiliated with the YuE2 authors.",
     "phase": {
       "connecting": "Connecting",
@@ -33,7 +39,7 @@
   "create": {
     "title": "Create",
     "titleLabel": "Title",
-    "titleHint": "Optional. Left empty, the first lyric line is used.",
+    "titleHint": "Optional. Empty uses the first lyric line, or Untitled and the date.",
     "style": "Style",
     "styleHint": "Genre, instruments, voice, language, tempo",
     "stylePlaceholder": "English, warm piano pop, expressive female voice, acoustic piano, 88 BPM",
@@ -66,8 +72,7 @@
     "scoreHint": "From the recording, or paste your own",
     "modeClose": "Close",
     "modeFree": "Free",
-    "modeHintClose": "Close keeps the melody and the chords.",
-    "modeHintFree": "Free keeps the melody only.",
+    "modeHint": "Free: melody only. Close: melody and chords.",
     "transcribe": "Transcribe",
     "transcribing": "Transcribing, this takes about a minute.",
     "transcribeFailed": "Could not transcribe: $message. Check the file and try again.",
@@ -111,7 +116,7 @@
     "emptyHint": "Write a style and lyrics in Create, then add the song to the queue.",
     "goCreate": "Go to Create",
     "emptyLiked": "No liked songs yet",
-    "emptyLikedHint": "Tap the heart on a song to keep it here.",
+    "emptyLikedHint": "Tap the heart next to a song to like it. Liked songs appear here.",
     "filter": {
       "all": "All",
       "liked": "Liked"
@@ -145,7 +150,10 @@
     "noScore": "This song has no score.",
     "exportFailed": "Could not export the audio: $message",
     "today": "Today, $time",
-    "yesterday": "Yesterday"
+    "yesterday": "Yesterday",
+    "step": "Step $done of $total",
+    "timeLeft": "$time left",
+    "eta": "About $time"
   },
   "score": {
     "notation": "Notation",
@@ -169,12 +177,6 @@
     "stageSound": "Sound",
     "stageMaster": "Master",
     "starting": "Starting",
-    "loading": "Loading model",
-    "planning": "Planning score, $pct%",
-    "composing": "Composing melody, $pct%",
-    "rendering": "Rendering sound, step $done of $total",
-    "mastering": "Mastering, step $done of $total",
-    "masteringNoStep": "Mastering",
     "done": "Done",
     "timeLeft": "$status · about $time left",
     "cancel": "Cancel",
@@ -185,7 +187,9 @@
     "durMin": "$m min",
     "durMinSec": "$m min $s s",
     "timeLeftFew": "$status · a few seconds left",
-    "stageDoneLabel": "$stage, done"
+    "stageDoneLabel": "$stage, done",
+    "statusPct": "$stage, $pct%",
+    "statusStep": "$stage, step $done of $total"
   },
   "shell": {
     "brand": {
@@ -211,12 +215,12 @@
       "noScore": "The engine did not produce a score."
     },
     "stage": {
-      "load": "Loading the model",
-      "abc": "Writing the score",
-      "semantic": "Composing the melody",
+      "load": "Loading model",
+      "abc": "Planning score",
+      "semantic": "Composing melody",
       "nar": "Rendering sound",
       "vae": "Mastering",
-      "transcribe": "Reading the recording"
+      "transcribe": "Transcribing"
     },
     "time": {
       "minSec": "$m min $s s",

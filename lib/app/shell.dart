@@ -20,7 +20,8 @@ class Shell extends StatelessWidget {
   const Shell({super.key, required this.services});
   final Services services;
 
-  void _reuse(Song s) => services.createDraft.prefill(style: s.request.style, lyrics: s.request.lyrics, cot: s.request.cot);
+  void _reuse(Song s) =>
+      services.createDraft.prefill(style: s.request.style, lyrics: s.request.lyrics, cot: s.request.cot);
 
   @override
   Widget build(BuildContext context) {
@@ -76,12 +77,12 @@ class _Panes extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ValueListenableBuilder<Section>(
-        valueListenable: nav,
-        builder: (context, current, _) => Stack(
-          fit: StackFit.expand,
-          children: [for (final e in children.entries) _Pane(active: e.key == current, child: e.value)],
-        ),
-      );
+    valueListenable: nav,
+    builder: (context, current, _) => Stack(
+      fit: StackFit.expand,
+      children: [for (final e in children.entries) _Pane(active: e.key == current, child: e.value)],
+    ),
+  );
 }
 
 class _Pane extends StatefulWidget {
@@ -94,7 +95,11 @@ class _Pane extends StatefulWidget {
 }
 
 class _PaneState extends State<_Pane> with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(vsync: this, duration: Motion.screen, value: widget.active ? 1 : 0);
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: Motion.screen,
+    value: widget.active ? 1 : 0,
+  );
   late final Animation<double> _curve = CurvedAnimation(parent: _c, curve: Motion.curve);
 
   @override
@@ -113,31 +118,31 @@ class _PaneState extends State<_Pane> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: _c,
-        child: widget.child,
-        builder: (context, child) {
-          final hidden = !widget.active && _c.isDismissed;
-          return ExcludeFocus(
-            excluding: hidden,
-            child: TickerMode(
-              enabled: !hidden,
-              child: Offstage(
-                offstage: hidden,
-                child: IgnorePointer(
-                  ignoring: !widget.active,
-                  child: FadeTransition(
-                    opacity: _curve,
-                    child: SlideTransition(
-                      position: Tween(begin: const Offset(0, .02), end: Offset.zero).animate(_curve),
-                      child: child,
-                    ),
-                  ),
+    animation: _c,
+    child: widget.child,
+    builder: (context, child) {
+      final hidden = !widget.active && _c.isDismissed;
+      return ExcludeFocus(
+        excluding: hidden,
+        child: TickerMode(
+          enabled: !hidden,
+          child: Offstage(
+            offstage: hidden,
+            child: IgnorePointer(
+              ignoring: !widget.active,
+              child: FadeTransition(
+                opacity: _curve,
+                child: SlideTransition(
+                  position: Tween(begin: const Offset(0, .02), end: Offset.zero).animate(_curve),
+                  child: child,
                 ),
               ),
             ),
-          );
-        },
+          ),
+        ),
       );
+    },
+  );
 }
 
 class _Sidebar extends StatelessWidget {
@@ -152,7 +157,7 @@ class _Sidebar extends StatelessWidget {
     final top = Platform.isMacOS ? 38.0 : 28.0;
     return Container(
       width: Layout.sidebarWidth,
-      padding: EdgeInsets.fromLTRB(10, top, 10, 14),
+      padding: EdgeInsets.fromLTRB(0, top, 0, 14),
       decoration: BoxDecoration(
         color: Chrome.vibrancy ? c.sidebar : c.sidebarOpaque,
         border: Border(right: BorderSide(color: c.divider)),
@@ -163,59 +168,70 @@ class _Sidebar extends StatelessWidget {
           final nav = s.nav.value;
           final inLibrary = nav == Section.library;
           final liked = s.library.likedOnly;
+          // The nav keeps its 10 px inset; the queue block below spans the full sidebar width.
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
-                child: Row(children: [
-                  const YueLogo(size: 26),
-                  const SizedBox(width: 9),
-                  Expanded(child: YueWordmark(fontSize: TypeSize.brand)),
-                ]),
-              ),
-              _NavItem(
-                key: const Key('nav.create'),
-                label: t.shell.nav.create,
-                glyph: NavGlyph.create,
-                selected: nav == Section.create,
-                onTap: () {
-                  s.createDraft.showForm();
-                  s.nav.value = Section.create;
-                },
-              ),
-              _NavItem(
-                key: const Key('nav.cover'),
-                label: t.shell.nav.cover,
-                glyph: NavGlyph.cover,
-                selected: nav == Section.cover,
-                onTap: () => s.nav.value = Section.cover,
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 14, 8, 4),
-                child: Text(t.shell.nav.libraryGroup, style: Theme.of(context).textTheme.labelMedium),
-              ),
-              _NavItem(
-                key: const Key('nav.library'),
-                label: t.shell.nav.allSongs,
-                glyph: NavGlyph.library,
-                count: s.library.count,
-                selected: inLibrary && !liked,
-                onTap: () {
-                  s.library.setLikedOnly(false);
-                  s.nav.value = Section.library;
-                },
-              ),
-              _NavItem(
-                key: const Key('nav.liked'),
-                label: t.shell.nav.liked,
-                glyph: NavGlyph.heart,
-                count: s.library.likedCount,
-                selected: inLibrary && liked,
-                onTap: () {
-                  s.library.setLikedOnly(true);
-                  s.nav.value = Section.library;
-                },
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
+                      child: Row(
+                        children: [
+                          const YueLogo(size: 26),
+                          const SizedBox(width: 9),
+                          Expanded(child: YueWordmark(fontSize: TypeSize.brand)),
+                        ],
+                      ),
+                    ),
+                    _NavItem(
+                      key: const Key('nav.create'),
+                      label: t.shell.nav.create,
+                      glyph: NavGlyph.create,
+                      selected: nav == Section.create,
+                      onTap: () {
+                        s.createDraft.showForm();
+                        s.nav.value = Section.create;
+                      },
+                    ),
+                    _NavItem(
+                      key: const Key('nav.cover'),
+                      label: t.shell.nav.cover,
+                      glyph: NavGlyph.cover,
+                      selected: nav == Section.cover,
+                      onTap: () => s.nav.value = Section.cover,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 14, 8, 4),
+                      child: Text(t.shell.nav.libraryGroup, style: Theme.of(context).textTheme.labelMedium),
+                    ),
+                    _NavItem(
+                      key: const Key('nav.library'),
+                      label: t.shell.nav.allSongs,
+                      glyph: NavGlyph.library,
+                      count: s.library.count,
+                      selected: inLibrary && !liked,
+                      onTap: () {
+                        s.library.setLikedOnly(false);
+                        s.nav.value = Section.library;
+                      },
+                    ),
+                    _NavItem(
+                      key: const Key('nav.liked'),
+                      label: t.shell.nav.liked,
+                      glyph: NavGlyph.heart,
+                      count: s.library.likedCount,
+                      selected: inLibrary && liked,
+                      onTap: () {
+                        s.library.setLikedOnly(true);
+                        s.nav.value = Section.library;
+                      },
+                    ),
+                  ],
+                ),
               ),
               const Spacer(),
               _QueueStatus(services: s),
@@ -228,7 +244,14 @@ class _Sidebar extends StatelessWidget {
 }
 
 class _NavItem extends StatefulWidget {
-  const _NavItem({super.key, required this.label, required this.glyph, required this.selected, required this.onTap, this.count});
+  const _NavItem({
+    super.key,
+    required this.label,
+    required this.glyph,
+    required this.selected,
+    required this.onTap,
+    this.count,
+  });
   final String label;
   final NavGlyph glyph;
   final bool selected;
@@ -268,31 +291,33 @@ class _NavItemState extends State<_NavItem> {
               borderRadius: BorderRadius.circular(Radii.artwork),
               border: _focus ? Border.fromBorderSide(focusRing(c)) : null,
             ),
-            child: Row(children: [
-              NavIcon(widget.glyph, color: c.accent),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  widget.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: TypeSize.body,
-                    color: c.text,
-                    fontWeight: widget.selected ? FontWeight.w600 : FontWeight.w400,
+            child: Row(
+              children: [
+                NavIcon(widget.glyph, color: c.accent),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    widget.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: TypeSize.body,
+                      color: c.text,
+                      fontWeight: widget.selected ? FontWeight.w600 : FontWeight.w400,
+                    ),
                   ),
                 ),
-              ),
-              if (widget.count != null)
-                Text(
-                  '${widget.count}',
-                  style: TextStyle(
-                    fontSize: TypeSize.body,
-                    color: c.textTertiary,
-                    fontFeatures: const [FontFeature.tabularFigures()],
+                if (widget.count != null)
+                  Text(
+                    '${widget.count}',
+                    style: TextStyle(
+                      fontSize: TypeSize.body,
+                      color: c.textTertiary,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
                   ),
-                ),
-            ]),
+              ],
+            ),
           ),
         ),
       ),
@@ -309,11 +334,17 @@ class _QueueStatus extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = AppColors.of(context);
     final q = services.queue;
-    final small = TextStyle(fontSize: TypeSize.caption, color: c.textSecondary, fontFeatures: const [FontFeature.tabularFigures()]);
+    final small = TextStyle(
+      fontSize: TypeSize.caption,
+      color: c.textSecondary,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
     return Container(
       key: const Key('queue.status'),
-      padding: const EdgeInsets.fromLTRB(8, 10, 8, 2),
-      decoration: BoxDecoration(border: Border(top: BorderSide(color: c.divider))),
+      padding: const EdgeInsets.fromLTRB(18, 10, 18, 2),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: c.divider)),
+      ),
       child: ListenableBuilder(
         listenable: q,
         builder: (context, _) {
@@ -322,8 +353,8 @@ class _QueueStatus extends StatelessWidget {
           final line = stage == null
               ? t.shell.queue.starting
               : q.stageTotal != null
-                  ? t.shell.queue.step(stage: stageLabel(stage), done: q.stageDone, total: q.stageTotal!)
-                  : stageLabel(stage);
+              ? t.shell.queue.step(stage: stageLabel(stage), done: q.stageDone, total: q.stageTotal!)
+              : stageLabel(stage);
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -333,7 +364,7 @@ class _QueueStatus extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: TypeSize.caption, fontWeight: FontWeight.w600, color: c.text),
               ),
-              Text(line, maxLines: 1, overflow: TextOverflow.ellipsis, style: small),
+              Text(line, maxLines: 2, overflow: TextOverflow.ellipsis, style: small),
               if (q.queuedCount > 0) Text(t.shell.queue.queued(n: q.queuedCount), style: small),
               const SizedBox(height: 8),
               ClipRRect(
@@ -344,8 +375,12 @@ class _QueueStatus extends StatelessWidget {
                         tween: Tween(end: q.progress),
                         duration: Motion.of(context, Motion.screen),
                         curve: Motion.curve,
-                        builder: (_, v, _) =>
-                            LinearProgressIndicator(value: v, minHeight: 4, color: c.accent, backgroundColor: c.divider),
+                        builder: (_, v, _) => LinearProgressIndicator(
+                          value: v,
+                          minHeight: 4,
+                          color: c.accent,
+                          backgroundColor: c.divider,
+                        ),
                       ),
               ),
             ],

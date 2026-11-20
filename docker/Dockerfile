@@ -32,4 +32,8 @@ RUN git clone --depth 1 -b ${FLUTTER_VERSION} https://github.com/flutter/flutter
     && flutter precache --linux \
     && flutter --version
 
+# Managed Python 3.12 pre-fetched once into /opt/seed/uv-python. The e2e copies it into its fresh data dir, so setup's
+# `uv python install 3.12` finds it already installed (a re-run) instead of downloading ~50 s from the network each run.
+RUN UV_NO_CONFIG=1 UV_PYTHON_INSTALL_DIR=/opt/seed/uv-python UV_PYTHON_BIN_DIR=/opt/seed/bin uv python install --no-bin 3.12
+
 WORKDIR /work

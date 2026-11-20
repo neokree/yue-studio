@@ -96,6 +96,24 @@ void main() {
     expect(find.text('warm piano pop'), findsNWidgets(3)); // the failed row shows its error instead
   });
 
+  testWidgets('live rows: no like, an estimate in Length; table starts at the 28 px screen edge; now-playing badge, no fill', (t) async {
+    await pump(t);
+    expect(inRow(queued, const Key('library.like')), findsNothing);
+    expect(inRow(generating, const Key('library.like')), findsNothing);
+    expect(inRow(done, const Key('library.like')), findsOneWidget);
+    expect(t.widget<Text>(inRow(queued, const Key('library.eta'))).data, startsWith('About '));
+    // Artwork column and the Library title share the 28 px edge.
+    expect(t.getTopLeft(find.byType(Image).evaluate().isEmpty ? find.byKey(const Key('library.title')).first : find.byType(Image).first).dx, greaterThanOrEqualTo(28));
+    expect(t.getTopLeft(find.text('Title')).dx, 28);
+    expect(t.getTopLeft(find.text('Library').first).dx, 28);
+    expect(inRow(done, const Key('library.nowplaying')), findsNothing);
+    await player.play(done);
+    await t.pump();
+    expect(inRow(done, const Key('library.nowplaying')), findsOneWidget);
+    final deco = t.widget<Container>(find.descendant(of: row(done), matching: find.byType(Container)).first).decoration as BoxDecoration;
+    expect(deco.color, isNull); // the playing song has no selection fill
+  });
+
   testWidgets('subtitle is a short style: first three terms only', (t) async {
     final s = lib.create(
       title: 'Long style',

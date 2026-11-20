@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import '../i18n/strings.g.dart';
 import '../theme/tokens.dart';
 import 'installer.dart';
 import 'manifest.dart';
+import 'requirements.dart';
 
 /// "507 MB", "6.8 GB" (decimal units, as the manifest and Hugging Face count them).
 String formatBytes(int bytes) => bytes >= 1e9 ? '${(bytes / 1e9).toStringAsFixed(1)} GB' : '${(bytes / 1e6).round()} MB';
@@ -26,25 +28,46 @@ String _phaseLabel(String? phase) => switch (phase) {
       _ => t.setup.phase.connecting,
     };
 
+/// Setup text: no tracking (the Material body styles carry some), explicit size and weight.
+TextStyle _t(double size, Color color, {FontWeight weight = FontWeight.w400, bool tabular = false}) =>
+    TextStyle(fontSize: size, fontWeight: weight, color: color, letterSpacing: 0, fontFeatures: tabular ? _tabular : null);
+
+/// Height the column can grow to (error text, preflight lines): its top is pinned so nothing above moves when it does.
+const _reservedHeight = 640.0;
+
 /// First run (DESIGN.md screen 1): no sidebar, one 520 wide column.
-class SetupScreen extends StatelessWidget {
+class SetupScreen extends StatefulWidget {
   const SetupScreen({super.key, required this.installer});
   final Installer installer;
 
   @override
+  State<SetupScreen> createState() => _SetupScreenState();
+}
+
+class _SetupScreenState extends State<SetupScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Preflight on app start, before the user can press Install.
+    if (!widget.installer.complete && widget.installer.preflight == null) unawaited(widget.installer.runPreflight());
+  }
+
+  @override
   Widget build(BuildContext context) {
     final c = AppColors.of(context);
-    final tertiary = c.textTertiary;
     return Scaffold(
       backgroundColor: c.background,
       body: Stack(
         children: [
-          Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(30, 30, 30, 48),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 520),
-                child: ListenableBuilder(listenable: installer, builder: (context, _) => _Column(installer: installer)),
+          LayoutBuilder(
+            builder: (context, box) => Align(
+              alignment: Alignment.topCenter,
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(30, math.max(30, (box.maxHeight - _reservedHeight) / 2), 30, 48),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: ListenableBuilder(listenable: widget.installer, builder: (context, _) => _Column(installer: widget.installer)),
+                ),
               ),
             ),
           ),
@@ -56,7 +79,7 @@ class SetupScreen extends StatelessWidget {
               t.setup.fine,
               key: const Key('setup.fine'),
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 8.5, color: tertiary),
+              style: TextStyle(fontSize: 8.5, color: c.textTertiary),
             ),
           ),
         ],
@@ -64,6 +87,15 @@ class SetupScreen extends StatelessWidget {
     );
   }
 }
+
+String _gb(double v) => '${v.toStringAsFixed(v == v.roundToDouble() ? 0 : 1)} GB';
+
+String _problemText(Problem p, Hardware h) => switch (p) {
+      Problem.intel => t.setup.preflight.intel,
+      Problem.macos => t.setup.preflight.macos(have: h.macos ?? '', need: '${Requirements.minMacOS}'),
+      Problem.memory => t.setup.preflight.memory(have: _gb(h.memoryGb ?? 0), need: _gb(Requirements.minMemoryGb.toDouble())),
+      Problem.disk => t.setup.preflight.disk(have: formatBytes(h.freeDiskBytes ?? 0), need: '${Requirements.minFreeDiskGb} GB'),
+    };
 
 class _Column extends StatelessWidget {
   const _Column({required this.installer});
@@ -73,8 +105,9 @@ class _Column extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = AppColors.of(context);
     final steps = installer.manifest.steps;
-    final label = installer.running
-        ? t.setup.installing
+    final pre = installer.preflight;
+    final label = installer.blocked
+        ? t.setup.recheck
         : installer.failed
             ? t.setup.retry
             : t.setup.install;
@@ -86,49 +119,71 @@ class _Column extends StatelessWidget {
         const SizedBox(height: 14),
         _Title(color: c.text, accent: c.accent),
         const SizedBox(height: 6),
-        Text(installer.complete ? t.setup.ready : t.setup.subtitle, style: TextStyle(fontSize: 14, color: c.textSecondary)),
+        Text(installer.complete ? t.setup.ready : t.setup.subtitle, style: _t(14, c.textSecondary)),
+        if (pre != null && !installer.complete && (pre.blocks.isNotEmpty || pre.warnMemory))
+          Padding(
+            padding: const EdgeInsets.only(top: 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final p in pre.blocks)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(_problemText(p, pre.hardware), key: ValueKey('setup.preflight.${p.name}'), style: _t(13, c.error, weight: FontWeight.w600)),
+                  ),
+                if (pre.warnMemory)
+                  Text(
+                    t.setup.preflight.warnMemory(have: _gb(pre.hardware.memoryGb ?? 0)),
+                    key: const Key('setup.preflight.warn'),
+                    style: _t(13, c.textSecondary),
+                  ),
+              ],
+            ),
+          ),
         const SizedBox(height: 22),
         for (final s in steps) _StepRow(key: ValueKey('setup.step.${s.id}'), step: s, installer: installer),
         const SizedBox(height: 22),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(t.setup.totalDownload, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.text)),
+            Text(t.setup.totalDownload, style: _t(13, c.text, weight: FontWeight.w600)),
             Text(
               formatProgress(installer.downloadedBytes, installer.totalBytes),
               key: const Key('setup.total'),
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.text, fontFeatures: _tabular),
+              style: _t(13, c.text, tabular: true),
             ),
           ],
         ),
         const SizedBox(height: 8),
-        _Bar(value: installer.overall, indeterminate: installer.indeterminate, accent: c.accent, track: c.divider),
-        const SizedBox(height: 20),
+        _Bar(value: installer.overall, accent: c.accent, track: Theme.of(context).brightness == Brightness.dark ? const Color(0x29FFFFFF) : c.divider),
+        const SizedBox(height: 16),
         if (installer.diskShort case final d?)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Text(
               t.setup.noDisk(need: formatBytes(d.need), free: formatBytes(d.free)),
               key: const Key('setup.error'),
-              style: TextStyle(fontSize: 13, color: c.error),
+              style: _t(13, c.error),
             ),
           ),
-        if (!installer.complete)
-          FilledButton(
-            key: const Key('setup.install'),
-            onPressed: installer.running ? null : installer.install,
-            style: FilledButton.styleFrom(
-              backgroundColor: c.accent,
-              foregroundColor: c.onAccent,
-              // Quiet field-coloured disabled style: textSecondary on field is above 4.5:1 in both themes.
-              disabledBackgroundColor: c.field,
-              disabledForegroundColor: c.textSecondary,
-              minimumSize: const Size(0, 34),
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        // Hidden while installing: the bar and the rows are the status, a disabled button is just noise.
+        if (!installer.complete && !installer.running)
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton(
+              key: const Key('setup.install'),
+              onPressed: installer.install,
+              style: FilledButton.styleFrom(
+                backgroundColor: c.accent,
+                foregroundColor: c.onAccent,
+                minimumSize: const Size(0, 28),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(fontSize: 13, fontWeight: FontWeight.w600, letterSpacing: 0),
+              ),
+              child: Text(label),
             ),
-            child: Text(label),
           ),
       ],
     );
@@ -175,10 +230,9 @@ class _StepRow extends StatelessWidget {
     final running = st.status == StepStatus.running;
     final failed = st.status == StepStatus.failed;
     final bytes = installer.weightOf(step);
-    // Right column: the size, or "x of y GB" while a download reports bytes. textSecondary, not tertiary: it must stay readable (4.5:1).
+    // Right column: the size, or "x of y" while the step reports bytes. textSecondary, not tertiary: it must stay readable (4.5:1).
     final right = switch (st.status) {
       StepStatus.running when st.doneBytes != null && st.totalBytes != null => formatProgress(st.doneBytes!, st.totalBytes!),
-      StepStatus.failed => t.setup.failed,
       _ => bytes > 0 ? formatBytes(bytes) : '',
     };
     // Human phase line under a running step (never the raw uv/pip output): not for Python, the row already says it.
@@ -193,40 +247,31 @@ class _StepRow extends StatelessWidget {
             children: [
               SizedBox(width: 22, child: Align(alignment: Alignment.centerLeft, child: _Dot(status: st.status, accent: c.accent, error: c.error, idle: c.textTertiary))),
               const SizedBox(width: 10),
-              Expanded(
-                child: Text(step.label, style: TextStyle(fontSize: 13, fontWeight: running ? FontWeight.w600 : FontWeight.w400, color: c.text)),
-              ),
+              Expanded(child: Text(step.label, style: _t(13, c.text, weight: running ? FontWeight.w600 : FontWeight.w400))),
               SizedBox(
                 width: 112,
-                child: Text(
-                  right,
-                  key: Key('setup.step.size.${step.id}'),
-                  textAlign: TextAlign.right,
-                  style: TextStyle(fontSize: 12, color: failed ? c.error : c.textSecondary, fontFeatures: _tabular),
-                ),
+                child: Text(right, key: Key('setup.step.size.${step.id}'), textAlign: TextAlign.right, style: _t(12, c.textSecondary, tabular: true)),
               ),
             ],
           ),
           if (phase != null)
-            Padding(
-              padding: const EdgeInsets.only(left: 32, top: 4),
-              child: Text(phase, key: const Key('setup.step.detail'), style: TextStyle(fontSize: 12, color: c.textSecondary)),
-            ),
+            Padding(padding: const EdgeInsets.only(left: 32, top: 4), child: Text(phase, key: const Key('setup.step.detail'), style: _t(12, c.textSecondary))),
+          // One red headline (the dot is its ring), the cause when there is one, and the way out.
           if (failed)
             Padding(
               padding: const EdgeInsets.only(left: 32, top: 4, right: 4),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(t.setup.stepFailed(step: step.label), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.error)),
+                  Text(t.setup.stepFailed(step: step.label), key: const Key('setup.step.failed'), style: _t(12, c.error, weight: FontWeight.w600)),
                   if (st.error case final e? when e.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
-                      child: Text(e, key: const Key('setup.step.error'), maxLines: 4, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: c.textSecondary)),
+                      child: Text(e, key: const Key('setup.step.error'), maxLines: 4, overflow: TextOverflow.ellipsis, style: _t(12, c.textSecondary)),
                     ),
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
-                    child: Text(t.setup.recovery, key: const Key('setup.step.recovery'), style: TextStyle(fontSize: 12, color: c.textSecondary)),
+                    child: Text(t.setup.recovery, key: const Key('setup.step.recovery'), style: _t(12, c.textSecondary)),
                   ),
                 ],
               ),
@@ -237,91 +282,43 @@ class _StepRow extends StatelessWidget {
   }
 }
 
-/// The one overall bar. While a uv step runs (no byte counts) a soft segment sweeps over the unfilled part;
-/// Reduce Motion leaves it still.
-class _Bar extends StatefulWidget {
-  const _Bar({required this.value, required this.indeterminate, required this.accent, required this.track});
+/// The one overall bar: fills from the left with the downloaded bytes, the same number the Total row shows.
+class _Bar extends StatelessWidget {
+  const _Bar({required this.value, required this.accent, required this.track});
   final double value;
-  final bool indeterminate;
   final Color accent, track;
 
   @override
-  State<_Bar> createState() => _BarState();
-}
-
-class _BarState extends State<_Bar> with SingleTickerProviderStateMixin {
-  late final AnimationController _sweep = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600));
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _sync();
-  }
-
-  @override
-  void didUpdateWidget(_Bar old) {
-    super.didUpdateWidget(old);
-    _sync();
-  }
-
-  void _sync() {
-    final go = widget.indeterminate && !MediaQuery.disableAnimationsOf(context);
-    if (go && !_sweep.isAnimating) {
-      _sweep.repeat();
-    } else if (!go && _sweep.isAnimating) {
-      _sweep.stop();
-    }
-  }
-
-  @override
-  void dispose() {
-    _sweep.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => ClipRRect(
-        borderRadius: BorderRadius.circular(2),
-        child: SizedBox(
-          height: 4,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              LinearProgressIndicator(key: const Key('setup.bar'), value: widget.value, minHeight: 4, color: widget.accent, backgroundColor: widget.track),
-              if (widget.indeterminate)
-                RepaintBoundary(
-                  child: AnimatedBuilder(
-                    animation: _sweep,
-                    builder: (_, _) => CustomPaint(painter: _SweepPainter(widget.value, _sweep.value, widget.accent)),
+  Widget build(BuildContext context) => Semantics(
+        value: '${(value * 100).round()}%',
+        child: ClipRRect(
+          key: const Key('setup.bar'),
+          borderRadius: BorderRadius.circular(2),
+          child: SizedBox(
+            height: 4,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ColoredBox(key: const Key('setup.bar.track'), color: track),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: AnimatedFractionallySizedBox(
+                    key: const Key('setup.bar.fill'),
+                    duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 450),
+                    curve: const Cubic(.16, 1, .3, 1),
+                    widthFactor: value.clamp(0.0, 1.0),
+                    heightFactor: 1,
+                    child: ColoredBox(color: accent),
                   ),
                 ),
-            ],
+              ],
+            ),
           ),
         ),
       );
 }
 
-class _SweepPainter extends CustomPainter {
-  _SweepPainter(this.value, this.turn, this.color);
-  final double value, turn;
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final from = size.width * value;
-    final seg = size.width * 0.2;
-    canvas.save();
-    canvas.clipRect(Rect.fromLTRB(from, 0, size.width, size.height));
-    final x = from - seg + (size.width - from + seg) * Curves.easeInOut.transform(turn);
-    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, 0, seg, size.height), const Radius.circular(2)), Paint()..color = color.withValues(alpha: 0.55));
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(_SweepPainter o) => o.value != value || o.turn != turn || o.color != color;
-}
-
-/// 16 px state dot: empty ring (pending), spinning arc (running), filled (done), error ring (failed).
+/// 16 px state dot: empty ring (pending), faint ring with a spinning accent arc (running), filled (done), error ring (failed).
 class _Dot extends StatefulWidget {
   const _Dot({required this.status, required this.accent, required this.error, required this.idle});
   final StepStatus status;
@@ -397,7 +394,9 @@ class _DotPainter extends CustomPainter {
       case StepStatus.failed:
         canvas.drawCircle(center, r, stroke..color = error);
       case StepStatus.running:
-        canvas.drawArc(Rect.fromCircle(center: center, radius: r), turn * 2 * math.pi, math.pi * 1.5, false, stroke..color = accent);
+        // Same ring as the empty dot, so the diameter never changes; the arc rides on a faint full track.
+        canvas.drawCircle(center, r, stroke..color = accent.withValues(alpha: 0.22));
+        canvas.drawArc(Rect.fromCircle(center: center, radius: r), turn * 2 * math.pi - math.pi / 2, math.pi * 0.75, false, stroke..color = accent);
     }
   }
 

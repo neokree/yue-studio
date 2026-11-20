@@ -74,11 +74,12 @@ void main() {
     });
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('Loading model'), findsOneWidget);
+    expect(find.text('s'), findsOneWidget, reason: 'the style, one line under the title');
     expect(find.text('City Lights'), findsOneWidget);
 
     for (final (stage, done, total, p, text) in [
-      ('abc', 37, null, 0.15, 'Planning score, 50%'), // 'l' is 15 s of audio: 74 abc tokens expected
-      ('semantic', 375, null, 0.3, 'Composing melody, 50%'),
+      ('abc', 37, null, 0.15, 'Planning score, 15%'), // overall progress, the ring's number
+      ('semantic', 375, null, 0.3, 'Composing melody, 30%'),
       ('nar', 15, 32, 0.7, 'Rendering sound, step 15 of 32'),
       ('vae', 1, 4, 0.97, 'Mastering, step 1 of 4'),
     ]) {
@@ -127,8 +128,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 16));
     final ring = tester.getRect(find.byWidgetPredicate((w) => w is CustomPaint && w.painter is WaveformPainter));
     expect(ring.width, inInclusiveRange(280, 320));
-    expect(tester.getTopLeft(find.text('City Lights')).dy - ring.bottom, closeTo(32, 6));
+    expect(tester.getTopLeft(find.text('City Lights')).dy - ring.bottom, closeTo(30, 6));
     expect(find.byIcon(Icons.check_rounded), findsNWidgets(2), reason: 'Score and Melody are done');
+    expect(find.byKey(const Key('generation.stage.current')), findsOneWidget);
     expect(find.text('Rendering sound, step 3 of 32 · a few seconds left'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });

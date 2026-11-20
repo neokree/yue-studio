@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../app/services.dart';
 import '../engine/protocol.dart';
@@ -7,9 +6,11 @@ import '../generation/generation_view.dart';
 import '../i18n/strings.g.dart';
 import '../library/song.dart';
 import '../queue/stage_label.dart';
+import '../theme/focus_ring.dart';
 import '../theme/segmented.dart';
 import '../theme/tokens.dart';
 import 'create_draft.dart';
+import 'seed_field.dart';
 
 /// Create (design/DESIGN.md screen 2). After "Add to Queue" the whole pane shows the generation (screen 3) until the
 /// job ends or the user clicks Create in the sidebar, which returns to the form to queue more.
@@ -38,22 +39,24 @@ class CreateScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-        listenable: Listenable.merge([_draft, services.library]),
-        builder: (context, _) => AnimatedSwitcher(
-          duration: Motion.of(context, Motion.screen),
-          switchInCurve: Motion.curve,
-          switchOutCurve: Motion.curve,
-          child: _showGeneration()
-              ? GenerationView(
-                  key: const ValueKey('generation'),
-                  queue: services.queue,
-                  library: services.library,
-                  onFinished: _finished,
-                )
-              : _Form(key: const ValueKey('form'), services: services),
-        ),
-      );
+    listenable: Listenable.merge([_draft, services.library]),
+    builder: (context, _) => AnimatedSwitcher(
+      duration: Motion.of(context, Motion.screen),
+      switchInCurve: Motion.curve,
+      switchOutCurve: Motion.curve,
+      child: _showGeneration()
+          ? GenerationView(
+              key: const ValueKey('generation'),
+              queue: services.queue,
+              library: services.library,
+              onFinished: _finished,
+            )
+          : _Form(key: const ValueKey('form'), services: services),
+    ),
+  );
 }
+
+const _value = TextStyle(fontWeight: FontWeight.w400);
 
 class _Form extends StatelessWidget {
   const _Form({super.key, required this.services});
@@ -85,32 +88,40 @@ class _Form extends StatelessWidget {
           Text(t.create.title, style: theme.textTheme.titleLarge),
           const SizedBox(height: Space.md),
           _FieldLabel(t.create.titleLabel, t.create.titleHint),
-          TextField(key: const Key('create.title'), controller: d.title),
+          FocusRing(
+            child: TextField(key: const Key('create.title'), controller: d.title, style: _value),
+          ),
           const SizedBox(height: Space.md),
           _FieldLabel(t.create.style, t.create.styleHint),
-          TextField(
-            key: const Key('create.style'),
-            controller: d.style,
-            minLines: 2,
-            maxLines: 4,
-            decoration: InputDecoration(
-              hintText: t.create.stylePlaceholder,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          FocusRing(
+            child: TextField(
+              key: const Key('create.style'),
+              controller: d.style,
+              style: _value,
+              minLines: 2,
+              maxLines: 4,
+              decoration: InputDecoration(
+                hintText: t.create.stylePlaceholder,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
             ),
           ),
           const SizedBox(height: Space.md),
           _FieldLabel(t.create.lyrics, t.create.lyricsHint),
           Expanded(
-            child: TextField(
-              key: const Key('create.lyrics'),
-              controller: d.lyrics,
-              expands: true,
-              minLines: null,
-              maxLines: null,
-              textAlignVertical: TextAlignVertical.top,
-              decoration: InputDecoration(
-                hintText: t.create.lyricsPlaceholder,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            child: FocusRing(
+              child: TextField(
+                key: const Key('create.lyrics'),
+                controller: d.lyrics,
+                style: _value,
+                expands: true,
+                minLines: null,
+                maxLines: null,
+                textAlignVertical: TextAlignVertical.top,
+                decoration: InputDecoration(
+                  hintText: t.create.lyricsPlaceholder,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                ),
               ),
             ),
           ),
@@ -121,10 +132,12 @@ class _Form extends StatelessWidget {
               final estimate = services.estimator.estimate(lyrics: d.lyrics.text, plan: d.cot != CotMode.off);
               // Empty lyrics are an instrumental (the Lyrics hint says so), so only the style is required.
               final ready = d.style.text.trim().isNotEmpty;
-              return Row(
+              // Plan + seed stay tight on the left; the estimate hugs the button on the right.
+              final left = Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(t.create.plan, style: theme.textTheme.labelLarge),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 12),
                   Segmented<CotMode>(
                     key: const Key('create.cot'),
                     segments: [
@@ -136,28 +149,19 @@ class _Form extends StatelessWidget {
                     onChanged: d.setCot,
                   ),
                   const SizedBox(width: 14),
-                  Text(t.create.seed, style: theme.textTheme.labelLarge),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 104,
-                    child: TextField(
-                      key: const Key('create.seed'),
-                      controller: d.seed,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: InputDecoration(hintText: t.create.seedHint),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  // Right-aligned and hugging the button (12 px), as in the mock.
-                  Expanded(
+                  SeedField(key: const Key('create.seed'), controller: d.seed),
+                ],
+              );
+              final right = Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
                     child: Text(
                       t.create.estimate(time: formatEta(estimate)),
                       key: const Key('create.estimate'),
-                      textAlign: TextAlign.right,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(color: c.textTertiary),
+                      style: theme.textTheme.bodyMedium?.copyWith(color: c.textSecondary),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -167,6 +171,26 @@ class _Form extends StatelessWidget {
                     child: Text(t.create.generate),
                   ),
                 ],
+              );
+              return LayoutBuilder(
+                builder: (context, box) => box.maxWidth >= 680
+                    ? Row(
+                        children: [
+                          left,
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Align(alignment: Alignment.centerRight, child: right),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Align(alignment: Alignment.centerLeft, child: left),
+                          const SizedBox(height: 10),
+                          right,
+                        ],
+                      ),
               );
             },
           ),
@@ -186,10 +210,17 @@ class _FieldLabel extends StatelessWidget {
     final c = AppColors.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: Text.rich(TextSpan(children: [
-        TextSpan(text: label, style: Theme.of(context).textTheme.labelLarge),
-        TextSpan(text: '  $hint', style: TextStyle(fontSize: TypeSize.caption, color: c.textTertiary)),
-      ])),
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(text: label, style: Theme.of(context).textTheme.labelLarge),
+            TextSpan(
+              text: '  $hint',
+              style: TextStyle(fontSize: TypeSize.caption, color: c.textSecondary),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

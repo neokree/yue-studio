@@ -39,6 +39,10 @@ Fake mode emits `timings` too: measured wall time of its own (short) stages.
 
 Measured real durations for a 70 s song on an M4 Pro (to animate progress when total is null): load ~20 s first time, abc 17 s, semantic 55 s, nar 80 s, vae 4 s. Transcribe ~63 s.
 
+### Memory (additive)
+
+On Macs with less than 24 GB of memory (sysctl `hw.memsize`; env `YUE2_STUDIO_MEM_GB` overrides it, for tests), the sidecar unloads the YuE2 pipeline before running a `transcribe` job (drop the reference, `gc.collect()`, `torch.mps.empty_cache()` when available). The next `generate` loads it again lazily, so it emits the `load` stage (and a non-zero `timings.load`) as on first use. With 24 GB or more nothing is unloaded. The protocol is otherwise unchanged; the app does not need to do anything.
+
 ### Offline guarantee (real mode)
 
 After setup the sidecar never touches the network. `Yue2Backend` sets `HF_HUB_OFFLINE=1` itself (the app does not need to), loads `m-a-p/YuE2-3B` and `m-a-p/YuE2-Vae` with `local_files_only=True` at the exact revisions pinned in the manifest (`YUE2_STUDIO_MANIFEST`, else `<engine>/manifests/real.json`), and `sheetsage_wrap.py` does the same for SheetSage2 and for MERT (the revision pinned in SheetSage2's config). A missing model therefore fails with an `error` ("Run setup again"), it never downloads. The `fetch.py` setup steps are the only network users, and they must run WITHOUT `HF_HUB_OFFLINE`.

@@ -354,3 +354,39 @@ def test_fetch_disables_xet_before_importing_huggingface_hub(tmp_path):
     subprocess.run([sys.executable, "-c", f"import sys; sys.path[:0] = [{str(stub)!r}, {str(SIDECAR.parent)!r}]; import fetch"],
                    env=dict(env, SEEN=str(seen)), check=True, timeout=20)
     assert seen.read_text() == "1"
+
+
+def _load_stages_across_transcribe(tmp_path, mem_gb, monkeypatch):
+    monkeypatch.setenv("YUE2_STUDIO_MEM_GB", mem_gb)
+    s = Sidecar(tmp_path)
+    try:
+        assert s.next()["type"] == "ready"
+        loads = []
+        for job in ("g1", "t", "g2"):
+            if job == "t":
+                s.send({"type": "transcribe", "job": job, "audio": str(tmp_path / "x.wav"), "out": str(tmp_path / job), "mode": "full"})
+            else:
+                s.gen(job)
+            evs = s.until(job=job)
+            assert evs[-1]["type"] == "result"
+            loads.append(any(e.get("stage") == "load" for e in evs))
+        return loads
+    finally:
+        s.close()
+
+
+def test_low_memory_unloads_before_transcribe(tmp_path, monkeypatch):
+    # 16 GB: g1 loads, transcribe unloads, g2 loads again
+    assert _load_stages_across_transcribe(tmp_path, "16", monkeypatch) == [True, False, True]
+
+
+def test_enough_memory_keeps_pipeline(tmp_path, monkeypatch):
+    assert _load_stages_across_transcribe(tmp_path, "24", monkeypatch) == [True, False, False]
+
+
+def test_yue2_unload_drops_pipe(tmp_path):
+    b = backends.Yue2Backend(tmp_path)
+    b.pipe = object()
+    b.unload()
+    assert b.pipe is None
+    b.unload()  # idempotent

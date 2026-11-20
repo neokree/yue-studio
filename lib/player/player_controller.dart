@@ -103,6 +103,9 @@ class PlayerController extends ChangeNotifier {
   int get _index => _queue.indexWhere((s) => s.id == current?.id);
   bool get hasNext => _index >= 0 && _index < _queue.length - 1;
 
+  /// Symmetric with [hasNext]: a neighbour exists. (previous() still restarts the song after 3 s when there is one.)
+  bool get hasPrevious => _index > 0;
+
   Future<void> play(Song song) async {
     final lib = _library, a = song.audio;
     if (lib == null || a == null) return;

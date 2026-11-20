@@ -44,6 +44,24 @@ class Backend:
     def transcribe(self, request, on_progress, cancelled):
         raise NotImplementedError
 
+    def unload(self):
+        """Drop the loaded pipeline; the next generate loads it again (stage `load`). Called before transcribe on < 24 GB."""
+
+
+def memory_gb():
+    """Physical memory in GB (sysctl hw.memsize); env YUE2_STUDIO_MEM_GB overrides it (tests). inf if unknown."""
+    env = os.environ.get("YUE2_STUDIO_MEM_GB")
+    try:
+        if env:
+            return float(env)
+        return int(subprocess.check_output(["sysctl", "-n", "hw.memsize"], text=True)) / 2**30
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return float("inf")  # unknown: do not unload
+
+
+def low_memory():
+    return memory_gb() < 24
+
 
 def nap(cancelled, seconds):
     if cancelled.wait(seconds):
@@ -80,6 +98,9 @@ class FakeBackend(Backend):
     fake = True
 
     def __init__(self):
+        self.loaded = False
+
+    def unload(self):
         self.loaded = False
 
     def load(self, on_progress=None):
@@ -123,6 +144,8 @@ class FakeBackend(Backend):
     def transcribe(self, req, on_progress, cancelled):
         out = Path(req["out"])
         out.mkdir(parents=True, exist_ok=True)
+        if low_memory():
+            self.unload()
         on_progress("transcribe", 0, None)
         nap(cancelled, FAKE_STEP)
         (out / "score.abc").write_text(FAKE_ABC, encoding="utf-8")
@@ -215,6 +238,19 @@ class Yue2Backend(Backend):
             raise RuntimeError(f"Could not load the YuE2 model from the local install ({type(exc).__name__}: {exc}). "
                                "Run setup again.") from exc
 
+    def unload(self):
+        if self.pipe is None:
+            return
+        self.pipe = None
+        import gc
+        gc.collect()
+        try:
+            import torch
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+        except Exception:  # torch missing or no MPS: nothing more to free
+            pass
+
     def attach(self, pipe):
         pipe.progress = True  # yue2 only reports nar/vae steps and token counts when progress is on...
         pipe._status = self._status  # ...so route its status contexts here: nothing is printed (stdout is the protocol)
@@ -285,6 +321,8 @@ class Yue2Backend(Backend):
         if not py.exists():
             raise RuntimeError("SheetSage2 is not installed (run setup).")
         out.mkdir(parents=True, exist_ok=True)
+        if low_memory():
+            self.unload()  # SheetSage2's memory use is unmeasured: free the YuE2 weights first
         cmd = [str(py), str(ENGINE_DIR / "sheetsage_wrap.py"), req["audio"],
                "--model-dir", str(self.data / "models" / "SheetSage2"), "--output", str(out),
                "--device", "mps" if sys.platform == "darwin" else "auto"]

@@ -45,9 +45,10 @@ class WaveformPainter extends CustomPainter {
   static final Float64List _sin = Float64List.fromList(
       [for (var i = 0; i < bars; i++) math.sin(i / bars * 2 * math.pi - math.pi / 2)]);
 
-  // Spatial frequencies are whole turns around the ring, so the shape is seamless at 12 o'clock and has no
-  // high-frequency term to make neighbouring bars jag.
-  static const _k = [3.0, 5.0, 8.0];
+  // Whole turns around the ring, so the shape is seamless at 12 o'clock. Weights favour the fast terms:
+  // the slow one stays small so the silhouette is a circle with a moving spectrum, not a blob.
+  static const _k = [3.0, 7.0, 11.0];
+  static const _wt = [0.15, 0.35, 0.5];
 
   late final Paint _on, _off;
   final Float32List _buf = Float32List(bars * 4);
@@ -66,20 +67,20 @@ class WaveformPainter extends CustomPainter {
     final cx = size.width / 2, cy = size.height / 2;
     final w = d * 0.009;
     _on.strokeWidth = _off.strokeWidth = w;
-    final r0 = d * 0.22;
-    // The longest bar, round cap included, ends exactly on the ring's outer diameter.
-    final minLen = d * 0.015, maxLen = d * 0.5 - w - r0;
+    // Resting bar length lb; the accent bars peak at 1.3 lb, and that peak ends exactly on the outer diameter
+    // (round cap included), so the reached arc stays part of the ring instead of sticking out of it.
+    final lb = d * 0.15, peak = 1.3;
+    final r0 = d * 0.5 - w - lb * peak;
     final t = frame.time, s = frame.settle.clamp(0.0, 1.0), p = frame.progress.clamp(0.0, 1.0);
-    final reachedAmp = ui.lerpDouble(pulse ? 0.55 + 0.45 * beat(t) : 0.75, 0.8, s)!;
-    final idleAmp = ui.lerpDouble(0.3, 0.8, s)!;
+    final reachedAmp = ui.lerpDouble(pulse ? 0.92 + (peak - 0.92) * beat(t) : 1.1, 1.0, s)!;
+    const idleAmp = 0.85; // unreached bars: shorter and quieter than the reached ones
     final reached = (p * bars).ceil().clamp(0, bars);
     for (var i = 0; i < bars; i++) {
       final th = i / bars * 2 * math.pi;
-      // Sum of three slow sines, 0..1.
-      var v = 0.5 + 0.5 * (math.sin(th * _k[0] + t * 1.1) * .5 + math.sin(th * _k[1] - t * .8) * .3 + math.sin(th * _k[2] + t * 1.7) * .2);
-      v = ((v - 0.2) / 0.6).clamp(0.0, 1.0); // sines rarely leave 0.2..0.8: stretch so peaks reach the ring edge
-      v = v + (0.45 - v) * s;
-      final len = math.min(maxLen, minLen + (maxLen - minLen) * v * (i < reached ? reachedAmp : idleAmp));
+      // Three moving sines, -1..1; fully flattened once settled.
+      var n = math.sin(th * _k[0] + t * 1.1) * _wt[0] + math.sin(th * _k[1] - t * .8) * _wt[1] + math.sin(th * _k[2] + t * 1.7) * _wt[2];
+      n *= 1 - s;
+      final len = lb * (0.75 + 0.25 * n) * (i < reached ? reachedAmp : idleAmp);
       final c = _cos[i], sn = _sin[i], o = i * 4;
       _buf[o] = (cx + c * r0);
       _buf[o + 1] = (cy + sn * r0);

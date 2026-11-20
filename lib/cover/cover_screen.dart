@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../artwork/artwork.dart';
+import '../create/seed_field.dart';
 import '../generation/format.dart';
 import '../i18n/strings.g.dart';
 import '../library/song.dart';
@@ -238,7 +239,7 @@ class _CoverScreenState extends State<CoverScreen> {
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
-                                  _mode == 'close' ? t.cover.modeHintClose : t.cover.modeHintFree,
+                                  t.cover.modeHint, // one hint covering both options
                                   style: small,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -281,8 +282,8 @@ class _CoverScreenState extends State<CoverScreen> {
                           TextField(
                             key: const Key('cover.style'),
                             controller: _style,
-                            minLines: 2,
-                            maxLines: 3,
+                            minLines: 3,
+                            maxLines: 4, // room for the wrapped text without it touching the bottom edge
                             decoration: InputDecoration(hintText: t.cover.stylePlaceholder),
                             onChanged: (_) => setState(() => _problem = null),
                           ),
@@ -310,18 +311,7 @@ class _CoverScreenState extends State<CoverScreen> {
               // Bottom row as in Create, minus the plan: on Cover Close / Free already fixes it.
               Row(
                 children: [
-                  Text(t.cover.seed, style: theme.textTheme.labelLarge),
-                  const SizedBox(width: Space.sm),
-                  SizedBox(
-                    width: 96,
-                    child: TextField(
-                      key: const Key('cover.seed'),
-                      controller: _seed,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: InputDecoration(hintText: t.cover.seedHint),
-                    ),
-                  ),
+                  SeedField(key: const Key('cover.seed'), controller: _seed, label: t.cover.seed, hint: t.cover.seedHint),
                   const SizedBox(width: 14),
                   Expanded(
                     child: _problem != null

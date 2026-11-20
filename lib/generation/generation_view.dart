@@ -10,6 +10,7 @@ import '../i18n/strings.g.dart';
 import '../library/library_store.dart';
 import '../library/song.dart';
 import '../queue/job_queue.dart';
+import '../queue/stage_label.dart';
 import '../theme/tokens.dart';
 import 'format.dart';
 import 'waveform_painter.dart';
@@ -131,14 +132,8 @@ class _GenerationViewState extends State<GenerationView> with SingleTickerProvid
 
   int get _stageIndex => _finished && _success ? _stages.length : _stages.indexOf(_q.stage ?? '');
 
-  /// Whole percent of the current token stage against the estimate; never 100 until the stage is over.
-  int _pct(String stage) {
-    final f = _q.estimator.stageFractionFor(
-        stage: stage, done: _q.stageDone, total: _q.stageTotal, lyrics: _song?.request.lyrics ?? '');
-    return (f * 100).floor().clamp(0, 99);
-  }
-
   /// The one status line: `Rendering sound, step 15 of 32` or `Composing melody, 38%`, then `· about 2 min left`.
+  /// The percentage is the overall progress, the same number the ring shows. Stage names are the sidebar's.
   String _status(Duration? remaining) {
     if (_finished) return _success ? t.generation.done : '';
     final s = _stageText();
@@ -147,15 +142,13 @@ class _GenerationViewState extends State<GenerationView> with SingleTickerProvid
   }
 
   String _stageText() {
-    final done = _q.stageDone, total = _q.stageTotal;
-    return switch (_q.stage) {
-      'load' => t.generation.loading,
-      'abc' => t.generation.planning(pct: _pct('abc')),
-      'semantic' => t.generation.composing(pct: _pct('semantic')),
-      'nar' when total != null => t.generation.rendering(done: done, total: total),
-      'vae' when total != null && total > 0 => t.generation.mastering(done: done, total: total),
-      'vae' => t.generation.masteringNoStep,
-      _ => t.generation.starting,
+    final stage = _q.stage;
+    if (stage == null) return t.generation.starting;
+    final name = stageLabel(stage), total = _q.stageTotal;
+    return switch (stage) {
+      'abc' || 'semantic' => t.generation.statusPct(stage: name, pct: (_q.progress * 100).floor().clamp(0, 99)),
+      'nar' || 'vae' when total != null && total > 0 => t.generation.statusStep(stage: name, done: _q.stageDone, total: total),
+      _ => name,
     };
   }
 
@@ -173,11 +166,12 @@ class _GenerationViewState extends State<GenerationView> with SingleTickerProvid
     final upcoming = _contrast(c.textTertiary, c.background) >= 4.5 ? c.textTertiary : c.textSecondary;
     final remaining = _finished ? null : _q.remaining;
     final song = _song;
+    final style = shortStyle(song?.request.style ?? '', 4);
     return Center(
       key: const Key('generation.view'),
       child: LayoutBuilder(builder: (context, box) {
-        // 280-320 px at a 1280x720 window; below that the ring gives way to the text under it.
-        final side = box.maxHeight.isFinite ? (box.maxHeight - 200).clamp(120.0, 320.0) : 320.0;
+        // ~300 px at a 1280x720 window; below that the ring gives way to the text under it.
+        final side = box.maxHeight.isFinite ? (box.maxHeight - 230).clamp(120.0, 300.0) : 300.0;
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -211,10 +205,19 @@ class _GenerationViewState extends State<GenerationView> with SingleTickerProvid
                 ],
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 30), // the ring's drawn edge is the box edge (peak bars end on it)
             Text(song?.title ?? '', style: theme.textTheme.titleMedium?.copyWith(fontSize: 20, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 18),
-            // done: secondary + check; current: bold; upcoming: tertiary (secondary where tertiary is under 4.5:1).
+            if (style.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 440),
+                  child: Text(style, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: c.textSecondary)),
+                ),
+              ),
+            const SizedBox(height: 16),
+            // Same in both themes: done = check + secondary, current = accent dot + accent semibold, upcoming = tertiary
+            // (secondary where tertiary is under 4.5:1).
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -224,13 +227,20 @@ class _GenerationViewState extends State<GenerationView> with SingleTickerProvid
                     label: i < cur ? t.generation.stageDoneLabel(stage: labels[i]) : labels[i],
                     excludeSemantics: true,
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      SizedBox(width: 15, child: i < cur ? Icon(Icons.check_rounded, size: 12, color: c.textSecondary) : null),
+                      SizedBox(
+                        width: 15,
+                        child: i < cur
+                            ? Icon(Icons.check_rounded, size: 12, color: c.textSecondary)
+                            : i == cur
+                                ? Align(alignment: Alignment.centerLeft, child: Container(key: const Key('generation.stage.current'), width: 6, height: 6, decoration: BoxDecoration(color: c.accent, shape: BoxShape.circle)))
+                                : null,
+                      ),
                       Text(
                         labels[i],
                         style: TextStyle(
                           fontSize: 12,
-                          fontWeight: i == cur ? FontWeight.w700 : FontWeight.w400,
-                          color: i == cur ? c.text : (i < cur ? c.textSecondary : upcoming),
+                          fontWeight: i == cur ? FontWeight.w600 : FontWeight.w400,
+                          color: i == cur ? c.accent : (i < cur ? c.textSecondary : upcoming),
                         ),
                       ),
                     ]),

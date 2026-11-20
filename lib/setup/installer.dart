@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../app/paths.dart';
 import 'manifest.dart';
+import 'requirements.dart';
 import 'step_runner.dart';
 
 enum StepStatus { pending, running, done, failed }
@@ -12,7 +13,7 @@ enum StepStatus { pending, running, done, failed }
 class SetupStepState {
   StepStatus status = StepStatus.pending;
 
-  /// 0..1 when known, null = indeterminate.
+  /// 0..1 when known.
   double? progress;
   int? doneBytes, totalBytes;
 
@@ -24,19 +25,6 @@ class SetupStepState {
 /// Margin kept free on top of what is still to download (PROTOCOL.md / CONTRACT: manifest bytes + 2 GB).
 const diskMarginBytes = 2000000000;
 
-typedef FreeBytes = Future<int?> Function(String dir);
-
-/// Free bytes on the volume holding [dir] (null when it can't be told: don't block setup).
-Future<int?> dfFreeBytes(String dir) async {
-  try {
-    final r = await Process.run('df', ['-Pk', dir]);
-    final cols = (r.stdout as String).trim().split('\n').last.split(RegExp(r'\s+'));
-    return int.parse(cols[3]) * 1024;
-  } catch (_) {
-    return null;
-  }
-}
-
 /// Runs the manifest steps in order (PROTOCOL.md section 5) and remembers finished ones in setup-state.json.
 class Installer extends ChangeNotifier {
   Installer({
@@ -45,9 +33,11 @@ class Installer extends ChangeNotifier {
     Set<String> done = const {},
     StepRunner? runner,
     FreeBytes freeBytes = dfFreeBytes,
+    HardwareProbe? probe,
   })  : runner = runner ?? ProcessStepRunner(paths),
         // ignore: prefer_initializing_formals
-        _freeBytes = freeBytes {
+        _freeBytes = freeBytes,
+        probe = probe ?? SystemProbe(freeBytes: freeBytes) {
     for (final s in manifest.steps) {
       states[s.id] = SetupStepState()..status = done.contains(s.id) ? StepStatus.done : StepStatus.pending;
     }
@@ -64,9 +54,20 @@ class Installer extends ChangeNotifier {
   final SetupManifest manifest;
   final StepRunner runner;
   final FreeBytes _freeBytes;
+  final HardwareProbe probe;
   final Map<String, SetupStepState> states = {};
   final Map<String, int> _weight = {};
   bool running = false;
+
+  /// Result of the preflight (null until it has run). Blocking problems stop [install] before any download.
+  Preflight? preflight;
+  bool get blocked => preflight != null && !preflight!.ok;
+
+  Future<bool> runPreflight() async {
+    preflight = checkRequirements(await probe.read(paths.dataDir));
+    notifyListeners();
+    return preflight!.ok;
+  }
 
   /// Set when the free-disk check fails (not tied to a step).
   ({int need, int free})? diskShort;
@@ -101,10 +102,6 @@ class Installer extends ChangeNotifier {
     return sum.round();
   }
 
-  /// A step is running that cannot report bytes (uv python/venv, or a download before its first byte):
-  /// the bar animates indeterminately after the filled part. Its bytes count as done when it finishes.
-  bool get indeterminate => states.values.any((s) => s.status == StepStatus.running && s.progress == null);
-
   /// 0..1 for the one overall bar.
   double get overall => totalBytes == 0 ? (complete ? 1 : 0) : (downloadedBytes / totalBytes).clamp(0.0, 1.0);
 
@@ -114,6 +111,7 @@ class Installer extends ChangeNotifier {
     diskShort = null;
     notifyListeners();
     try {
+      if (!await runPreflight()) return;
       Directory(paths.dataDir).createSync(recursive: true);
       final remaining = manifest.steps.where((s) => states[s.id]!.status != StepStatus.done).fold<int>(0, (a, s) => a + weightOf(s));
       final need = remaining + diskMarginBytes;

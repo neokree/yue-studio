@@ -56,16 +56,39 @@ void main() {
     expect(t.widget<Text>(find.byKey(const Key('player.elapsed'))).data, '–:––');
   });
 
-  testWidgets('elapsed label and thumb share one position; subtitle is short style + length', (t) async {
+  testWidgets('elapsed label and thumb share one position; subtitle is the short style only, short clips show tenths', (t) async {
     await pump(t, Brightness.light);
     await pl.play(song);
     fake.dur.add(const Duration(seconds: 2));
     fake.pos.add(const Duration(milliseconds: 760)); // 38% of 2 s
     await t.pump();
     expect(t.widget<Slider>(find.byKey(const Key('player.scrubber'))).value, closeTo(.38, 1e-9));
-    expect(t.widget<Text>(find.byKey(const Key('player.elapsed'))).data, '0:01'); // 0.76 s rounds to 1, never "0:00" at 38%
-    expect(t.widget<Text>(find.byKey(const Key('player.total'))).data, '0:02');
-    expect(t.widget<Text>(find.byKey(const Key('player.subtitle'))).data, 'English, warm piano pop, expressive vocal · 0:02');
+    expect(t.widget<Text>(find.byKey(const Key('player.elapsed'))).data, '0:00.8'); // a 2 s clip shows tenths, so label and thumb (38%) agree
+    expect(t.widget<Text>(find.byKey(const Key('player.total'))).data, '0:02.0');
+    expect(t.widget<Text>(find.byKey(const Key('player.subtitle'))).data, 'English, warm piano pop, expressive vocal'); // length lives after the scrubber, not here
+  });
+
+  testWidgets('one-song library: previous and next are both disabled; nothing loaded hides previous, next and like', (t) async {
+    await pump(t, Brightness.light);
+    expect(find.byTooltip('Previous'), findsNothing);
+    expect(find.byTooltip('Next'), findsNothing);
+    expect(find.byKey(const Key('player.like')), findsNothing);
+    await pl.play(song);
+    await t.pump();
+    expect(t.widget<IconButton>(find.widgetWithIcon(IconButton, Icons.skip_previous_rounded)).onPressed, isNull);
+    expect(t.widget<IconButton>(find.widgetWithIcon(IconButton, Icons.skip_next_rounded)).onPressed, isNull);
+  });
+
+  testWidgets('transport is centred on the bar axis, play is the heaviest glyph, like shares the transport line', (t) async {
+    await pump(t, Brightness.light);
+    await pl.play(song);
+    await t.pump();
+    final bar = t.getCenter(find.byKey(const Key('player.bar')));
+    final mid = (t.getCenter(find.byTooltip('Previous')).dx + t.getCenter(find.byTooltip('Next')).dx) / 2;
+    expect(t.getCenter(find.byKey(const Key('player.toggle'))).dx, closeTo(bar.dx, 1));
+    expect(mid, closeTo(bar.dx, 1));
+    expect(t.widget<IconButton>(find.byKey(const Key('player.toggle'))).iconSize, greaterThan(26));
+    expect(t.getCenter(find.byKey(const Key('player.like'))).dy, closeTo(t.getCenter(find.byKey(const Key('player.toggle'))).dy, .5));
   });
 
   for (final b in Brightness.values) {
