@@ -1,0 +1,11 @@
+build/
+.dart_tool/
+.scratch/
+*.iml
+.idea/
+.fvm/flutter_sdk
+__pycache__/
+.venv/
+.pytest_cache/
+assets/uv/uv
+dist/

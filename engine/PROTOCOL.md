@@ -1,0 +1,66 @@
+# Engine protocol (single source of truth)
+
+Dart (`lib/engine/`) and Python (`engine/`) both follow this file. Change it here first.
+
+## 1. Process and transport
+
+- Launch: `<venv yue2>/bin/python <engine>/sidecar.py --data-dir <data dir> [--fake]`.
+  Env set by the app: `PYTORCH_ENABLE_MPS_FALLBACK=1`, `HF_HOME=<data>/hf`, `UV_CACHE_DIR=<data>/uv-cache`,
+  `UV_PYTHON_INSTALL_DIR=<data>/uv-python`, `HF_TOKEN` removed, `PYTHONUNBUFFERED=1`.
+- stdin: requests. stdout: events. One JSON object per line, UTF-8, `\n` terminated. stderr: free-form logs (the app keeps the last 200 lines for error reports, never parses them).
+- Unknown fields are ignored by both sides. Every message has a `type`.
+- The sidecar runs **one job at a time**. The queue lives in Dart: it sends the next request only after the previous job's `result` or `error`. A request that arrives while busy gets `error {message: "busy"}`.
+- Fake mode (`--fake`): Python standard library only. Same events, short timer (each stage ~0.3 s; env `YUE2_FAKE_STEP_SECONDS` overrides), writes a tiny valid `audio.wav` (1-2 s, 48 kHz stereo, sine), `score.abc`, `result.json`.
+
+## 2. Requests (app -> sidecar)
+
+| type | fields |
+|---|---|
+| `generate` | `job` (string id chosen by app), `out` (absolute dir, created by sidecar), `style`, `lyrics`, `cot` (`full` \| `melody` \| `off`), `seed` (int), `abc` (optional string: a cover score) |
+| `transcribe` | `job`, `audio` (absolute path: wav/flac/mp3/ogg), `out` (absolute dir), `mode` (`full` = Close, melody + chords \| `melody` = Free, melody only) |
+| `cancel` | `job` |
+| `shutdown` | (none) sidecar exits 0 after the current step |
+
+## 3. Events (sidecar -> app)
+
+| type | fields |
+|---|---|
+| `ready` | `version` (1), `fake` (bool). Sent once, after start; the model is NOT loaded yet (loads lazily on first generate, reported as stage `load`). |
+| `progress` | `job`, `stage`, `done` (int), `total` (int or null) |
+| `result` | `job`, `dir` (absolute), `audio` (file name inside dir, generate only: `audio.flac` real, `audio.wav` fake), `seed` (int, generate only), `duration` (seconds, float, generate only) |
+| `error` | `job` (null if not tied to a job), `message`, `cancelled` (bool, true when the job ended because of `cancel`) |
+
+Stages, in order:
+- generate: `load` (total null, only when the pipeline is not loaded yet), `abc` (token count, total null; skipped when `cot=off` or `abc` given), `semantic` (token count, total null), `nar` (done/total), `vae` (done/total).
+- transcribe: `transcribe` (total null; one event when it starts, one per ~2 s heartbeat with elapsed seconds in `done`).
+- Token-count stages emit at most one event per 25 tokens.
+
+Measured real durations for a 70 s song on an M4 Pro (to animate progress when total is null): load ~20 s first time, abc 17 s, semantic 55 s, nar 80 s, vae 4 s. Transcribe ~63 s.
+
+## 4. Output folder
+
+`generate` writes into `out`: the audio file, `score.abc`, `result.json` (engine output, untouched). `transcribe` writes `score.abc` into `out`. The app owns `meta.json` in the same library folder; the sidecar never touches it.
+
+## 5. Setup manifest
+
+A manifest is JSON: `{"name", "bytes" (total download estimate, for the free-disk check), "steps": [...]}`. Steps run in order; each has `id`, `kind`, `label` (shown in UI). A step is done when `<data>/setup-state.json` lists its id; finished steps are skipped on resume.
+
+| kind | fields | how the app runs it |
+|---|---|---|
+| `python` | `version` | `uv python install <version>` |
+| `venv` | `name`, `python`, `packages` (list, may be empty), `requirements` (optional path relative to data dir) | `uv venv <data>/venvs/<name> --python <python>` then `uv pip install --python <venv> ...` |
+| `hf` | `repo`, `revision`, `bytes`, `local_dir` (optional, relative to data dir; else HF cache in `<data>/hf`), `venv` (venv whose python runs the fetcher) | `<venv>/bin/python <engine>/fetch.py --repo .. --revision .. [--local-dir ..]` which prints JSON lines `{"type":"progress","done":bytes,"total":bytes}` then `{"type":"done"}` or `{"type":"error","message"}`. Resumable (huggingface_hub keeps partial files). |
+
+Manifests live in `engine/manifests/`: `fake.json` (python + venv, no packages, no models) and `real.json`.
+
+## 6. App paths (Dart)
+
+| what | default | override env (tests) |
+|---|---|---|
+| data dir | `~/Library/Application Support/YuE2 Studio` | `YUE2_STUDIO_DATA_DIR` |
+| uv binary | bundled asset copied to `<data>/bin/uv` (chmod +x) | `YUE2_STUDIO_UV` |
+| engine scripts | bundled assets copied to `<data>/engine/` | `YUE2_STUDIO_ENGINE_DIR` |
+| manifest | `<engine>/manifests/real.json` | `YUE2_STUDIO_MANIFEST` |
+| fake sidecar | off | `YUE2_STUDIO_FAKE=1` adds `--fake` |
+
+Library: `<data>/library/<id>/` with engine artifacts + `meta.json` `{id, title, liked, createdAt (ISO-8601), status (queued|generating|done|failed), kind (song|cover), request {style, lyrics, cot, seed, abc?}, audio (file name or null), duration (s or null), error (string or null)}`. List = directory scan, newest first by createdAt.
