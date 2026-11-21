@@ -97,6 +97,17 @@ void main() {
     expect(pl.current!.title, 't2');
   });
 
+  test('seeking to the very end finishes the song even without a backend completion', () async {
+    await pl.play(songs[0]); // t1, the last in the list
+    await pl.seek(const Duration(seconds: 10));
+    expect((pl.current!.title, pl.playing), ('t1', false));
+    expect(fake.log.skip(1), ['seek 10', 'pause']);
+
+    await pl.play(songs[1]); // t2 has a next: the end of it moves on, like a natural completion
+    await pl.seek(const Duration(seconds: 10));
+    expect((pl.current!.title, pl.playing), ('t1', true));
+  });
+
   test('deleting the playing song stops the player; renaming updates it', () async {
     await pl.play(songs[0]);
     lib.rename(songs[0].id, 'new name');

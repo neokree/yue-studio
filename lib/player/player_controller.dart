@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
@@ -23,6 +24,26 @@ abstract class PlayerBackend {
 /// The one AudioPlayer. Created lazily on first play.
 class AudioplayersBackend implements PlayerBackend {
   final _p = AudioPlayer();
+  int _gen = 0; // a play or stop issued while a FLAC converts wins over it
+
+  /// AVPlayer seeks seconds off in the engine's FLAC (no SEEKTABLE: asked 30 s, heard 22.4 s) while the clock shows
+  /// the asked time. ALAC seeks to the sample: a lossless copy is made once next to the FLAC (about 1 s for 3 min).
+  /// Falls back to the FLAC when afconvert fails.
+  static Future<String> _playable(String path) async {
+    if (!Platform.isMacOS || p.extension(path) != '.flac') return path;
+    final m4a = p.setExtension(path, '.m4a');
+    if (File(m4a).existsSync()) return m4a;
+    final tmp = '$m4a.partial';
+    try {
+      final r = await Process.run('/usr/bin/afconvert', ['-f', 'm4af', '-d', 'alac', path, tmp]);
+      if (r.exitCode != 0) return path;
+      File(tmp).renameSync(m4a);
+      return m4a;
+    } catch (_) {
+      return path;
+    }
+  }
+
   @override
   Stream<Duration> get position => _p.onPositionChanged;
   @override
@@ -30,7 +51,12 @@ class AudioplayersBackend implements PlayerBackend {
   @override
   Stream<void> get completed => _p.onPlayerComplete;
   @override
-  Future<void> play(String path) => _p.play(DeviceFileSource(path));
+  Future<void> play(String path) async {
+    final g = ++_gen;
+    final src = await _playable(path);
+    // ponytail: a pause during the ~1 s first conversion is not tracked; the song still starts.
+    if (g == _gen) await _p.play(DeviceFileSource(src));
+  }
   @override
   Future<void> pause() => _p.pause();
   @override
@@ -38,7 +64,10 @@ class AudioplayersBackend implements PlayerBackend {
   @override
   Future<void> seek(Duration to) => _p.seek(to);
   @override
-  Future<void> stop() => _p.stop();
+  Future<void> stop() {
+    _gen++;
+    return _p.stop();
+  }
   @override
   Future<void> dispose() => _p.dispose();
 }
@@ -160,6 +189,12 @@ class PlayerController extends ChangeNotifier {
     position = to;
     notifyListeners();
     await _b.seek(to);
+    // AVPlayer does not reliably post its end notification after a seek to the very end: finish here. Paused first,
+    // so a late native completion is dropped (audioplayers ignores it when not playing) and cannot skip twice.
+    if (playing && duration > Duration.zero && to >= duration) {
+      await _b.pause();
+      _onComplete();
+    }
   }
 
   void _onComplete() {
