@@ -73,8 +73,20 @@ A manifest is JSON: `{"name", "bytes" (total download estimate, for the free-dis
 | `python` | `version` | `uv python install <version>` |
 | `venv` | `name`, `python`, `packages` (list, may be empty), `requirements` (optional path relative to data dir) | `uv venv <data>/venvs/<name> --python <python>` then `uv pip install --python <venv> ...` |
 | `hf` | `repo`, `revision`, `bytes`, `local_dir` (optional, relative to data dir; else HF cache in `<data>/hf`), `venv` (venv whose python runs the fetcher) | `<venv>/bin/python <engine>/fetch.py --repo .. --revision .. [--local-dir ..]` which prints JSON lines `{"type":"progress","done":bytes,"total":bytes}` then `{"type":"done"}` or `{"type":"error","message"}`. Resumable (huggingface_hub keeps partial files). |
+| `models` | `manifest` (file in `engine/manifests/`), `venv`, `bytes` | `<venv>/bin/python <engine>/modelset.py migrate --data-dir <data> --manifest <engine>/manifests/<manifest>`: same JSON lines as `hf` (`done` carries `set`). |
 
-Manifests live in `engine/manifests/`: `fake.json` (python + venv, no packages, no models) and `real.json`.
+Manifests live in `engine/manifests/`: `fake.json` (python + venv, no packages, no models), `real.json` and `models.json`.
+
+### Model set (`models.json`, `modelset.py`)
+
+`models.json` declares the models the engine needs: `{"schema": 1, "set": <version>, "artifacts": [...], "retire": [repos]}`. Each artifact has an `id` and either:
+
+- `kind: "hf"`: `repo`, a 40-character `revision`, `files` (`path`, `size`, `sha256` for LFS files or `git_sha1` for small files). Files live in the HF cache `<data>/hf/hub`.
+- `kind: "derived"`: `recipe` (with its version), `inputs` (artifact ids) and `when` (capabilities: `mlx` = this machine selects the MLX engine). Built into `<data>/models/<id>@<fingerprint>/` with a `.artifact.json` marker. The fingerprint covers the recipe, its version and the inputs, so a new recipe or new inputs gives a new directory.
+
+`modelset.py migrate` (also `status [--deep]`): lock `<data>/models/.lock` -> plan against `<data>/models/installed.json` -> free-disk check -> download missing files (resumable) and verify each new file's hash (a corrupt file is discarded) -> build derived artifacts in `models/.staging`, then rename -> write `installed.json` atomically -> only then delete what nothing references: old derived directories, staging leftovers, and revisions of repos the set manages or retires. A cleanup error never fails the migration. It never touches `library/` or anything outside `models/` and the managed repos. Running it again is a no-op. To change models later, edit `models.json` (new `set`, new revisions or artifacts) and give the setup step a new id (`models-<set>`): existing installs then migrate on the next launch.
+
+The engine reads the pinned revisions and the derived directories from `installed.json` (`backends.pinned_revisions`, `modelset.artifact_dir`).
 
 ## 6. App paths (Dart)
 
