@@ -99,6 +99,10 @@ sealed class EngineEvent {
           seed: (j['seed'] as num?)?.toInt(),
           duration: (j['duration'] as num?)?.toDouble(),
           timings: (j['timings'] as Map?)?.map((k, v) => MapEntry('$k', (v as num).toDouble())),
+          engine: switch (j['engine']) {
+            {'ar': final String ar} => ar.startsWith('mlx') ? 'mlx' : 'torch',
+            _ => null,
+          },
         );
       case 'error':
         return ErrorEvent(
@@ -136,7 +140,11 @@ class ProgressEvent extends EngineEvent {
 }
 
 class ResultEvent extends EngineEvent {
-  const ResultEvent({required this.job, required this.dir, this.audio, this.seed, this.duration, this.timings});
+  const ResultEvent({required this.job, required this.dir, this.audio, this.seed, this.duration, this.timings, this.engine});
+
+  /// 'mlx' or 'torch': what ran the token loop (result.engine.ar), real generate only. The estimator keeps one cost
+  /// model per engine.
+  final String? engine;
   final String job, dir;
   final String? audio;
   final int? seed;
@@ -153,6 +161,7 @@ class ResultEvent extends EngineEvent {
         if (seed != null) 'seed': seed,
         if (duration != null) 'duration': duration,
         if (timings != null) 'timings': timings,
+        if (engine != null) 'engine': {'ar': engine},
       };
 }
 

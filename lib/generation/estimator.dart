@@ -83,6 +83,20 @@ const stageCoef = {'abc': 0.0064, 'semantic': 0.0421, 'nar': 0.016, 'vae': 0.075
 const tokenExp = {'abc': 1.856, 'semantic': 1.0};
 const tokenCoefPrior = {'abc': 0.128, 'semantic': 25.0};
 
+/// The same model for the MLX engine (8-bit tokens, MLX acoustic velocity), fitted by least squares through five real runs
+/// on the reference Mac (69.6 s: abc 9.5, semantic 25.9, nar 65.6, vae 3.1; 143 s cover: 55.4 / 172.2 / 5.9; 145 s: 19.0 /
+/// 56.8 / 177.3 / 6.0; 179.7 s: 18.6 / 70.3 / 236.7 / 7.5; 216.3 s: 31.3 / 90.5 / 359.3 / 9.9). Every fit is within 10% of
+/// the runs but the abc stage (22%). The token loop no longer slows down as the song grows (60 tok/s at 216 s), so abc and
+/// semantic are about linear; nar grows as L^1.45, not L^2. abc tokens: 621 at 70 s, 1988 at 216 s.
+const mlxStageExp = {'abc': 0.941, 'semantic': 1.086, 'nar': 1.449, 'vae': 1.0};
+const mlxStageCoef = {'abc': 0.171, 'semantic': 0.256, 'nar': 0.1355, 'vae': 0.043};
+const mlxTokenExp = {'abc': 0.927, 'semantic': 1.0};
+const mlxTokenCoefPrior = {'abc': 11.9, 'semantic': 25.0};
+
+/// Auto engine selection picks MLX from this much memory (MLX_MIN_MEMORY_GB in engine/backends.py). Only the first guess:
+/// the engine named in every result replaces it.
+const mlxMinMemoryBytes = 24 * (1 << 30);
+
 /// Song length model: affine in the number of sung lines through (8 lines, 70 s) and (33 lines, 174.3 s). Section tags ignored.
 const _lenA = 36.6, _lenB = 4.17, _instrumentalSeconds = 120.0;
 
@@ -91,10 +105,31 @@ const _lenA = 36.6, _lenB = 4.17, _instrumentalSeconds = 120.0;
 /// Time is not linear in the length L: each stage is coef x L^exp (see [stageExp]), the coefficients start from the
 /// reference Mac scaled by the hardware prior and are replaced by the user's own runs (the exponents stay).
 class GenerationEstimator {
-  GenerationEstimator(this.dataDir, {HardwareProbe? probe}) : _probe = probe ?? probeHardware;
+  GenerationEstimator(this.dataDir, {HardwareProbe? probe, String? engine})
+      : _probe = probe ?? probeHardware,
+        _forced = engine,
+        engine = engine ?? 'torch';
 
   final String dataDir;
   final HardwareProbe _probe;
+
+  /// Set by tests to pin the engine; otherwise the stored one, else the guess from the hardware.
+  final String? _forced;
+
+  /// 'torch' or 'mlx': which cost model applies. The stored coefficients belong to one engine's exponents, so a change of
+  /// engine (a result that names the other one) starts again from that engine's prior.
+  String engine;
+
+  Map<String, double> get exp => engine == 'mlx' ? mlxStageExp : stageExp;
+  Map<String, double> get _tokExp => engine == 'mlx' ? mlxTokenExp : tokenExp;
+
+  /// Back to the prior of [engine] on this hardware.
+  void _reset() {
+    final scale = priorWorkPerAudioSecond(hardware) / refWork;
+    coef = {for (final e in (engine == 'mlx' ? mlxStageCoef : stageCoef).entries) e.key: e.value * scale};
+    tokenCoef = {...(engine == 'mlx' ? mlxTokenCoefPrior : tokenCoefPrior)};
+    runs = 0;
+  }
 
   /// Per-stage coefficient c of seconds = c x L^exp (this machine: prior x hardware scale, then calibrated).
   Map<String, double> coef = {...stageCoef};
@@ -105,7 +140,7 @@ class GenerationEstimator {
   /// Seconds of work per audio second at the 70 s reference length, per stage (what a typical song costs).
   Map<String, double> get speeds => {for (final k in coef.keys) k: _secs(k, 70) / 70};
 
-  double _secs(String stage, double audio) => coef[stage]! * math.pow(audio, stageExp[stage]!);
+  double _secs(String stage, double audio) => coef[stage]! * math.pow(audio, exp[stage]!);
 
   double loadSeconds = 20;
   double transcribePerSecond = 0.9; // 63 s for a ~70 s source
@@ -131,10 +166,12 @@ class GenerationEstimator {
     } else {
       hardware = await _probe();
     }
+    // A file without "engine" was calibrated by the PyTorch engine (before 0.2.0): useless for MLX, so it is dropped there.
+    final stored = j['engine'] as String?;
+    engine = _forced ?? stored ?? (hardware.mac && hardware.memBytes >= mlxMinMemoryBytes ? 'mlx' : 'torch');
+    _reset();
+    if ((stored ?? 'torch') != engine) j = {};
     runs = (j['runs'] as num?)?.toInt() ?? 0;
-    final scale = priorWorkPerAudioSecond(hardware) / refWork;
-    coef = {for (final e in stageCoef.entries) e.key: e.value * scale};
-    tokenCoef = {...tokenCoefPrior};
     if (j['coef'] is Map) {
       for (final e in (j['coef'] as Map).entries) {
         if (coef.containsKey(e.key) && e.value is num && e.value > 0) coef[e.key as String] = (e.value as num).toDouble();
@@ -154,6 +191,7 @@ class GenerationEstimator {
       await Directory(dataDir).create(recursive: true);
       await _file.writeAsString(const JsonEncoder.withIndent('  ').convert({
         'hw': hardware.toJson(),
+        'engine': engine,
         'runs': runs,
         'coef': coef,
         'tokenCoef': tokenCoef,
@@ -193,7 +231,7 @@ class GenerationEstimator {
   Duration estimateTranscribe(double seconds) => Duration(milliseconds: (seconds * transcribePerSecond * 1000).round());
 
   /// Expected total token count of a token-counted stage.
-  double _expectedTokens(String stage, double audio) => tokenCoef[stage]! * math.pow(audio, tokenExp[stage]!);
+  double _expectedTokens(String stage, double audio) => tokenCoef[stage]! * math.pow(audio, _tokExp[stage]!);
 
   /// Fraction (0..1) of the current stage, never reaching 1 for stages with unknown totals.
   double _fraction(String stage, int done, int? total, Duration elapsed, double audio, double stageSeconds) {
@@ -287,12 +325,18 @@ class GenerationEstimator {
   /// Folds a finished run into the stored coefficients c = seconds / L^exp (moving average; the first run replaces the
   /// prior; the exponents stay, so a short run still scales up to a long song).
   /// [stageSeconds] keys: load, abc, semantic, nar, vae. [tokens] (optional): final token count of abc / semantic.
+  /// [engine] (optional): 'mlx' or 'torch', the engine that ran the song; a change starts from that engine's prior.
   Future<void> record({
     required Map<String, double> stageSeconds,
     required double audioSeconds,
     Map<String, int>? tokens,
+    String? engine,
   }) async {
     if (fake || audioSeconds <= 0) return;
+    if (engine != null && engine != this.engine) {
+      this.engine = engine;
+      _reset();
+    }
     final a = runs == 0 ? 1.0 : math.max(0.3, 1 / (runs + 1));
     double mix(double old, double obs) => old + (obs - old) * a;
     for (final e in stageSeconds.entries) {
@@ -300,12 +344,12 @@ class GenerationEstimator {
       if (e.key == 'load') {
         loadSeconds = mix(loadSeconds, e.value);
       } else if (coef.containsKey(e.key)) {
-        coef[e.key] = mix(coef[e.key]!, e.value / math.pow(audioSeconds, stageExp[e.key]!));
+        coef[e.key] = mix(coef[e.key]!, e.value / math.pow(audioSeconds, exp[e.key]!));
       }
     }
     for (final e in (tokens ?? const <String, int>{}).entries) {
       if (e.value > 0 && tokenCoef.containsKey(e.key)) {
-        tokenCoef[e.key] = mix(tokenCoef[e.key]!, e.value / math.pow(audioSeconds, tokenExp[e.key]!));
+        tokenCoef[e.key] = mix(tokenCoef[e.key]!, e.value / math.pow(audioSeconds, _tokExp[e.key]!));
       }
     }
     runs++;

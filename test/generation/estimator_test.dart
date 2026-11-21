@@ -14,7 +14,9 @@ void main() {
   });
   tearDown(() => tmp.deleteSync(recursive: true));
 
-  GenerationEstimator ref() => GenerationEstimator(tmp.path, probe: () async => Hardware.reference);
+  // The PyTorch model, pinned: the reference Mac has 48 GB, so the engine guess would be MLX.
+  GenerationEstimator ref() => GenerationEstimator(tmp.path, probe: () async => Hardware.reference, engine: 'torch');
+  GenerationEstimator auto() => GenerationEstimator(tmp.path, probe: () async => Hardware.reference);
 
   Duration none = Duration.zero;
   double prog(GenerationEstimator e, String s, int d, int? t, {Duration? el}) =>
@@ -141,6 +143,43 @@ void main() {
     expect(e.expectedSeconds(lyrics: songLyrics, sourceSeconds: 95, scoreSeconds: 48), 48);
     expect(rem(70).inSeconds, closeTo(rem(null).inSeconds, 2), reason: 'lyrics guess is 70 s');
     expect(rem(48), lessThan(rem(null) * 0.6), reason: 'a 48 s song is much quicker than the 70 s guess');
+  });
+
+  test('MLX cost model: the five measured runs, within 15%', () async {
+    final e = auto();
+    await e.load();
+    e.modelLoaded = true;
+    expect(e.engine, 'mlx', reason: '48 GB Apple Silicon: auto selection picks MLX');
+    // (audio s, abc + semantic + nar + vae measured s)
+    for (final (audio, measured) in [(69.6, 104.1), (145.0, 259.1), (179.7, 333.1), (216.3, 491.0)]) {
+      final est = e.exp.keys.fold<double>(0, (a, k) => a + e.coef[k]! * math.pow(audio, e.exp[k]!));
+      expect(est / measured, closeTo(1, 0.15), reason: '$audio s');
+    }
+    // far from the PyTorch model, which said about 2.4x too much for the 216 s song
+    final torch = ref();
+    await torch.load();
+    final t = stageExp.keys.fold<double>(0, (a, k) => a + torch.coef[k]! * math.pow(216.3, stageExp[k]!));
+    expect(t / 491, greaterThan(2));
+  });
+
+  test('a calibration belongs to one engine: old files and a change of engine start from the prior', () async {
+    // estimator.json written before 0.2.0: no "engine", calibrated by PyTorch
+    File('${tmp.path}/estimator.json').writeAsStringSync(jsonEncode({
+      'hw': Hardware.reference.toJson(), 'runs': 4, 'coef': {'nar': 0.0159, 'semantic': 0.0326},
+    }));
+    final e = auto();
+    await e.load();
+    expect((e.engine, e.runs, e.coef['nar']), ('mlx', 0, mlxStageCoef['nar']));
+    await e.record(stageSeconds: {'nar': 359.3}, audioSeconds: 216.3, engine: 'mlx');
+    expect(e.coef['nar'], closeTo(359.3 / math.pow(216.3, 1.449), 1e-9), reason: 'first run replaces the prior');
+    // the user switches to PyTorch (YUE2_STUDIO_ENGINE=torch): the result says so, the model follows
+    await e.record(stageSeconds: {'nar': 480}, audioSeconds: 174, engine: 'torch');
+    expect((e.engine, e.runs), ('torch', 1));
+    expect(e.coef['nar'], closeTo(480 / (174 * 174), 1e-9));
+    expect(e.coef['semantic'], stageCoef['semantic'], reason: 'stages the run did not report are the PyTorch prior');
+    final again = auto();
+    await again.load();
+    expect((again.engine, again.runs), ('torch', 1), reason: 'the stored engine wins over the hardware guess');
   });
 
   test('fake engine runs never calibrate; estimate is deterministic', () async {

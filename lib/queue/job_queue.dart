@@ -290,7 +290,7 @@ class JobQueue extends ChangeNotifier {
       // fall back to the times measured from progress events. Without engine timings, drop load: it is per session.
       final timings = e.timings ?? (Map<String, double>.of(_stageSeconds)..remove('load'));
       final tokens = {for (final k in ['abc', 'semantic']) if (_tokens[k] != null) k: _tokens[k]!};
-      unawaited(estimator.record(stageSeconds: timings, audioSeconds: audio, tokens: tokens).catchError((_) {}));
+      unawaited(estimator.record(stageSeconds: timings, audioSeconds: audio, tokens: tokens, engine: e.engine).catchError((_) {}));
     }
     _lastFinishedId = job.id;
     _finish(job);

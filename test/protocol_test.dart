@@ -31,6 +31,9 @@ void main() {
     expect(r.timings, isNull);
     final t = parse('{"type":"result","job":"j","dir":"/d","timings":{"load":0,"abc":17.5,"nar":80}}') as ResultEvent;
     expect(t.timings, {'load': 0.0, 'abc': 17.5, 'nar': 80.0});
+    expect((r.engine, t.engine), (null, null));
+    String? eng(String ar) => (parse('{"type":"result","job":"j","dir":"/d","engine":{"ar":"$ar","nar":"torch"}}') as ResultEvent).engine;
+    expect((eng('mlx-q8'), eng('mlx-bf16'), eng('torch')), ('mlx', 'mlx', 'torch'));
     expect(parse('{"type":"future"}'), isA<UnknownEvent>());
   });
 }
