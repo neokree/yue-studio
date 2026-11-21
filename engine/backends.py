@@ -10,10 +10,13 @@ on_progress(stage, done, total) reports a protocol stage (PROTOCOL.md section 3)
 cancelled is a threading.Event; a backend raises Cancelled promptly once it is set.
 request is the protocol request dict; for generate, "seed" is already resolved to an int.
 timings (generate) is {load, abc, semantic, nar, vae} in seconds; 0 for a stage that did not run.
+Real generate results also carry `engine` ({ar, nar, ar_weights}): which engine produced the song (select_engine).
 """
+import importlib.util
 import json
 import math
 import os
+import platform
 import struct
 import subprocess
 import sys
@@ -184,6 +187,66 @@ class FakeBackend(Backend):
         return dict(dir=str(out))
 
 
+# ---------------------------------------------------------------- engine selection (pure: unit-tested on any OS)
+
+ENGINE_CHOICES = ("auto", "mlx", "torch")
+MLX_MIN_MEMORY_GB = 24  # torch model (~7.3 GB) + 8-bit AR (~2.3 GB) + bf16 NAR (~2.9 GB) MLX copies stay resident
+
+
+def mlx_importable():
+    """True when the mlx package is installed, without importing it (no Metal init, works on Linux)."""
+    return importlib.util.find_spec("mlx") is not None
+
+
+def engine_config(data_dir):
+    """Optional <data>/engine.json, e.g. {"engine": "torch"}; missing or invalid -> {}."""
+    try:
+        cfg = json.loads((Path(data_dir) / "engine.json").read_text(encoding="utf-8"))
+        return cfg if isinstance(cfg, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def select_engine(env=None, config=None, system=None, machine=None, mem_gb=None, mlx_available=None):
+    """Which engine runs the token loop (ar) and the acoustic velocity (nar): "mlx" or "torch", plus why.
+
+    Switch: env YUE2_STUDIO_ENGINE (auto|mlx|torch), else "engine" in <data>/engine.json, else auto.
+    YUE2_STUDIO_NAR_ENGINE / "nar_engine" override the acoustic stage alone (default: same as the token loop).
+    auto = MLX on Apple Silicon with >= 24 GB and mlx installed, otherwise PyTorch. An explicit "mlx" where MLX cannot
+    run falls back to PyTorch (never a crash); memory is not checked then (the user asked for it).
+    """
+    env = os.environ if env is None else env
+    config = config or {}
+    system = platform.system() if system is None else system
+    machine = platform.machine() if machine is None else machine
+    apple = system == "Darwin" and machine == "arm64"
+    have_mlx = mlx_importable() if mlx_available is None else mlx_available
+
+    def choice(env_key, cfg_key, default):
+        value = str(env.get(env_key) or config.get(cfg_key) or default).strip().lower()
+        return value if value in ENGINE_CHOICES else "auto"
+
+    def resolve(wanted):
+        if wanted == "torch":
+            return "torch", "requested"
+        if not apple:
+            return "torch", "not Apple Silicon" + (" (mlx requested)" if wanted == "mlx" else "")
+        if not have_mlx:
+            return "torch", "mlx not installed" + (" (mlx requested)" if wanted == "mlx" else "")
+        if wanted == "mlx":
+            return "mlx", "requested"
+        mem = memory_gb() if mem_gb is None else mem_gb
+        if mem < MLX_MIN_MEMORY_GB:
+            return "torch", f"{mem:.0f} GB memory < {MLX_MIN_MEMORY_GB} GB"
+        return "mlx", "auto"
+
+    ar_wanted = choice("YUE2_STUDIO_ENGINE", "engine", "auto")
+    ar, ar_reason = resolve(ar_wanted)
+    nar_wanted = choice("YUE2_STUDIO_NAR_ENGINE", "nar_engine", ar_wanted)
+    nar, nar_reason = resolve(nar_wanted) if (env.get("YUE2_STUDIO_NAR_ENGINE") or config.get("nar_engine")) else (ar, ar_reason)
+    return {"ar": ar, "nar": nar, "reason": ar_reason if ar == nar else f"ar: {ar_reason}; nar: {nar_reason}"}
+
+
 # ---------------------------------------------------------------- real: YuE2 (torch) + SheetSage2 (subprocess)
 
 def pinned_revisions():
@@ -202,6 +265,9 @@ class Yue2Backend(Backend):
     def __init__(self, data_dir):
         self.data = Path(data_dir)
         self.pipe = None
+        self.engine = select_engine(config=engine_config(self.data))
+        print(f"engine: tokens {self.engine['ar']}, acoustic {self.engine['nar']} ({self.engine['reason']})",
+              file=sys.stderr, flush=True)
         os.environ["HF_HOME"] = str(self.data / "hf")
         os.environ["HF_HUB_OFFLINE"] = "1"  # before huggingface_hub is imported
         os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
@@ -213,17 +279,42 @@ class Yue2Backend(Backend):
         if on_progress:
             on_progress("load", 0, None)
         pins = pinned_revisions()
+        kwargs = dict(vae="m-a-p/YuE2-Vae", device="auto", progress=False,
+                      revision=pins.get("m-a-p/YuE2-3B"), vae_revision=pins.get("m-a-p/YuE2-Vae"),
+                      cache_dir=str(self.data / "hf" / "hub"), local_files_only=True)
         try:
-            from yue2 import YuE2Pipeline
-            self.pipe = YuE2Pipeline.from_pretrained(
-                "m-a-p/YuE2-3B", vae="m-a-p/YuE2-Vae", device="auto", progress=False,
-                revision=pins.get("m-a-p/YuE2-3B"), vae_revision=pins.get("m-a-p/YuE2-Vae"),
-                cache_dir=str(self.data / "hf" / "hub"), local_files_only=True)
-            # Weights load lazily inside the first call; do it now so stage `load` is the load and abc/semantic are not.
-            self.pipe._load_model()
+            if "mlx" in (self.engine["ar"], self.engine["nar"]):
+                try:
+                    self.pipe = self._load_mlx(kwargs)
+                except Exception as exc:  # MLX/Metal trouble must not cost the user the song: PyTorch can still run it
+                    self.pipe = None
+                    self.engine = {"ar": "torch", "nar": "torch", "reason": f"MLX failed to load ({type(exc).__name__}: {exc})"}
+                    print(f"engine: falling back to PyTorch: {self.engine['reason']}", file=sys.stderr, flush=True)
+            if self.pipe is None:
+                from yue2 import YuE2Pipeline
+                self.pipe = YuE2Pipeline.from_pretrained("m-a-p/YuE2-3B", **kwargs)
+                # Weights load lazily inside the first call; do it now so stage `load` is the load and abc/semantic are not.
+                self.pipe._load_model()
         except Exception as exc:
             raise RuntimeError(f"Could not load the YuE2 model from the local install ({type(exc).__name__}: {exc}). "
                                "Run setup again.") from exc
+
+    def _load_mlx(self, kwargs):
+        sys.path.insert(0, str(ENGINE_DIR))  # mlx_*.py live next to this file
+        from mlx_pipeline import MlxYuE2Pipeline  # imports mlx + yue2 only here, never in fake mode or tests
+        pipe = MlxYuE2Pipeline.from_pretrained("m-a-p/YuE2-3B", ar_engine=self.engine["ar"], nar_engine=self.engine["nar"],
+                                               ar_artifact=self.ar_artifact(), **kwargs)
+        pipe.prepare_mlx()  # loads the PyTorch model too, so stage `load` is the whole load
+        return pipe
+
+    def ar_artifact(self):
+        """Directory of the cached 8-bit MLX token weights, or None (then they are quantized at load time)."""
+        return None
+
+    def engine_label(self):
+        if self.pipe is not None and hasattr(self.pipe, "engine_label"):
+            return self.pipe.engine_label()
+        return {"ar": "torch", "nar": "torch", "ar_weights": None}
 
     def unload(self):
         if self.pipe is None:
@@ -286,7 +377,7 @@ class Yue2Backend(Backend):
         t["nar"] = float(pt.get("nar_seconds", 0.0))
         t["vae"] = float(pt.get("vae_seconds", 0.0))
         return dict(dir=str(out), audio="audio.flac", seed=seed,
-                    duration=float(len(song.audio) / song.sample_rate), timings=t)
+                    duration=float(len(song.audio) / song.sample_rate), timings=t, engine=self.engine_label())
 
     def transcribe(self, req, on_progress, cancelled):
         out = Path(req["out"])

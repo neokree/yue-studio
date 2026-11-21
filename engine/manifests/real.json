@@ -10,13 +10,14 @@
       "bytes": 17000000
     },
     {
-      "id": "venv-yue2-1116bea",
+      "id": "venv-yue2-1116bea-mlx0.32.4",
       "kind": "venv",
-      "label": "Engine environment (PyTorch, YuE2)",
+      "label": "Engine environment (PyTorch, MLX, YuE2)",
       "name": "yue2",
       "python": "3.12",
       "packages": [
-        "yue2-infer @ https://github.com/multimodal-art-projection/YuE/archive/1116bea76032bee5668e5f097294d082fa0b84f0.zip"
+        "yue2-infer @ https://github.com/multimodal-art-projection/YuE/archive/1116bea76032bee5668e5f097294d082fa0b84f0.zip",
+        "mlx==0.32.4; sys_platform == 'darwin' and platform_machine == 'arm64'"
       ],
       "bytes": 1700000000
     },

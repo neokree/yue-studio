@@ -1,0 +1,21 @@
+YuE2 Studio (neokree/yue-studio), MIT License (see LICENSE).
+
+Third-party design credit
+-------------------------
+The MLX engine (engine/mlx_ar.py, engine/mlx_nar.py, engine/mlx_pipeline.py, engine/mlx_convert.py) follows the
+approach of YuE Studio by Tony Weston, https://github.com/tonywestonuk/YuE-Studio (Apache License 2.0):
+8-bit MLX weights for the bandwidth-bound token loop (src/yue2/ar_mlx.py), the PyTorch-prefill / MLX-velocity split for
+acoustic flow matching (src/yue2/nar_mlx.py) and the MLX-vs-PyTorch token agreement check (tools/bench_ar_mlx.py).
+No source file of that project is copied here; these files are an independent implementation written against the
+upstream yue2 package. Thanks to Tony for publishing the measurements and the method.
+
+Upstream engine
+---------------
+The YuE2 inference code (yue2-infer, https://github.com/multimodal-art-projection/YuE, Apache License 2.0) is installed
+as a dependency at a pinned commit and is not redistributed in this repository. The MLX modules call its sampling,
+prompting and acoustic-chunking functions unchanged.
+
+Model weights
+-------------
+m-a-p/YuE2-3B and m-a-p/YuE2-Vae (CC BY-NC 4.0) are downloaded by the user at pinned revisions. The 8-bit MLX token
+weights are derived from them on the user's machine and inherit their license; they are never redistributed.

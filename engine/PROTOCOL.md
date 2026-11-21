@@ -27,7 +27,7 @@ Dart (`lib/engine/`) and Python (`engine/`) both follow this file. Change it her
 |---|---|
 | `ready` | `version` (1), `fake` (bool). Sent once, after start; the model is NOT loaded yet (loads lazily on first generate, reported as stage `load`). |
 | `progress` | `job`, `stage`, `done` (int), `total` (int or null), `audio` (additive, optional: song length in seconds read from the finished score, bars x meter / tempo, within ~4% of the real length; only on the first `semantic` event of a song whose score the engine wrote; the `GenerationEstimator` uses it instead of its guess from the lyrics) |
-| `result` | `job`, `dir` (absolute), `audio` (file name inside dir, generate only: `audio.flac` real, `audio.wav` fake), `seed` (int, generate only), `duration` (seconds, float, generate only), `timings` (generate only, additive: `{"load","abc","semantic","nar","vae"}` wall seconds per stage, floats; 0 for a stage that did not run, e.g. `load` when the model was already loaded, `abc` when `cot=off` or `abc` was given; for the `GenerationEstimator`) |
+| `result` | `job`, `dir` (absolute), `audio` (file name inside dir, generate only: `audio.flac` real, `audio.wav` fake), `seed` (int, generate only), `duration` (seconds, float, generate only), `engine` (real generate only, additive: `{"ar": "mlx-q8"\|"mlx-bf16"\|"torch", "nar": "mlx-bf16"\|"torch", "ar_weights": "artifact"\|"load-time"\|null}`, see "Engines"), `timings` (generate only, additive: `{"load","abc","semantic","nar","vae"}` wall seconds per stage, floats; 0 for a stage that did not run, e.g. `load` when the model was already loaded, `abc` when `cot=off` or `abc` was given; for the `GenerationEstimator`) |
 | `error` | `job` (null if not tied to a job), `message`, `cancelled` (bool, true when the job ended because of `cancel`) |
 
 Stages, in order:
@@ -46,6 +46,15 @@ On Macs with less than 32 GB of memory (sysctl `hw.memsize`; env `YUE2_STUDIO_ME
 ### Offline guarantee (real mode)
 
 After setup the sidecar never touches the network. `Yue2Backend` sets `HF_HUB_OFFLINE=1` itself (the app does not need to), loads `m-a-p/YuE2-3B` and `m-a-p/YuE2-Vae` with `local_files_only=True` at the exact revisions pinned in the manifest (`YUE2_STUDIO_MANIFEST`, else `<engine>/manifests/real.json`), and `sheetsage_wrap.py` does the same for SheetSage2 and for MERT (the revision pinned in SheetSage2's config). A missing model therefore fails with an `error` ("Run setup again"), it never downloads. The `fetch.py` setup steps are the only network users, and they must run WITHOUT `HF_HUB_OFFLINE`.
+
+### Engines (real mode)
+
+`Yue2Backend` picks the engine once per sidecar process (`backends.select_engine`, logged on stderr):
+
+- Token loop (abc + semantic): **MLX with 8-bit weights** (`mlx_ar.py`) or the upstream PyTorch loop.
+- Acoustic velocity (nar): **MLX in bf16** (`mlx_nar.py`, never quantized) or upstream PyTorch. The acoustic prefill, the VAE and every other step stay upstream PyTorch.
+- `auto` (default) = MLX on Apple Silicon with >= 24 GB memory and `mlx` installed; else PyTorch. Switch: env `YUE2_STUDIO_ENGINE` = `auto` | `mlx` | `torch` (or `{"engine": ...}` in `<data>/engine.json`; env wins). `YUE2_STUDIO_NAR_ENGINE` / `"nar_engine"` override the acoustic stage alone. An explicit `mlx` where MLX cannot run, or an MLX load failure, falls back to PyTorch instead of failing.
+- Quality defaults are unchanged in both engines (32 ODE steps, same sampling, same seeds: sampling stays upstream PyTorch on CPU).
 
 ### Engine code layout
 

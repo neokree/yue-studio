@@ -32,6 +32,10 @@ flutter:
     - engine/backends.py
     - engine/fetch.py
     - engine/sheetsage_wrap.py
+    - engine/mlx_ar.py
+    - engine/mlx_nar.py
+    - engine/mlx_pipeline.py
+    - engine/mlx_convert.py
     - engine/manifests/
     - assets/uv/
     - assets/abcjs/
