@@ -80,8 +80,9 @@ Future<List<int>> childFootprintsKb() async {
 }
 
 /// Hard ceilings, so a slow or heavy engine cannot pass silently (the old release wheel took 16+ min and 52 GB).
-// MLX keeps the PyTorch model loaded (acoustic prefill, VAE, fallback) next to the 8-bit token weights and the bf16
-// acoustic copy: measured 18 GB (145 s song) and 21 GB (180 s, cot=melody) on an M4 Pro; PyTorch alone stayed under 16.
+// MLX keeps a lean PyTorch model loaded (acoustic prefill, VAE; no acoustic modules) next to the bf16 acoustic copy, and
+// gives the 8-bit token weights back during the acoustic stage: measured 13 GB (145 s song), 13 GB (cot=melody) and 14 GB
+// (cover) on an M4 Pro; before the lean load the same run peaked at 18 / 19 / 17 GB. The margin is for longer songs.
 const maxRssGb = 26.0;
 // 6.5x: measured 4.9x for a 174 s song on an M4 Pro (time grows faster than length), plus margin.
 const wallPerAudioSecond = 6.5;

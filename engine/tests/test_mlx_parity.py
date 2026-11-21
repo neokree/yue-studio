@@ -150,3 +150,20 @@ def test_nar_latents_match_torch(model):
     got = mlx_nar.synthesize(model, mlx_nar.NARWeights(model), PREFIX, codec, 5, steps=4)
     assert got.shape == ref.shape == (40, 64)
     assert corr(ref.flatten().numpy(), got.flatten().numpy()) > 0.999
+
+
+def test_lean_model_gives_the_same_latents(model):
+    """mlx_pipeline.strip_nar: the acoustic weights are read into MLX first, then removed from the PyTorch model. The
+    prefill only uses the AR path, so the latents are bit-identical, and the stripped model holds no acoustic weight."""
+    import copy
+    from mlx_pipeline import NAR_MODULES, strip_nar
+    codec = [int(x) for x in np.random.default_rng(3).integers(0, CODEC_SIZE, 20)]
+    weights = mlx_nar.NARWeights(model)
+    full = mlx_nar.synthesize(model, weights, PREFIX, codec, 5, steps=4)
+    lean = copy.deepcopy(model)
+    strip_nar(lean)
+    assert not [k for k in lean.state_dict() if any(f".{n}." in k for n in NAR_MODULES)]
+    assert sum(p.numel() for p in lean.parameters()) < sum(p.numel() for p in model.parameters())
+    assert torch.equal(mlx_nar.synthesize(lean, weights, PREFIX, codec, 5, steps=4), full)
+    with pytest.raises(AttributeError):  # a PyTorch acoustic pass on a lean model fails loudly, never silently wrong
+        torch_synthesize(lean, PREFIX, codec, 5, steps=4)

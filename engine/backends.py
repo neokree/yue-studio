@@ -128,6 +128,22 @@ def run_child(cmd, env, stage, on_progress, cancelled):
         return proc.returncode, log.read().decode("utf-8", "replace")[-600:]
 
 
+def free_caches():
+    """Give the GPU buffer caches back: torch MPS and MLX both keep freed buffers for reuse, and songs of different lengths
+    allocate different sizes, so without this the engine grew job after job (18 -> 22 -> 24 GB in one real session)."""
+    import gc
+    gc.collect()
+    try:
+        import torch
+        if torch.backends.mps.is_available():
+            torch.mps.empty_cache()
+    except Exception:  # torch missing or no MPS: nothing more to free
+        pass
+    mx = sys.modules.get("mlx.core")  # only when the MLX engine is in use; never import it here
+    if mx is not None:
+        mx.clear_cache()
+
+
 def nap(cancelled, seconds):
     if cancelled.wait(seconds):
         raise Cancelled()
@@ -379,14 +395,7 @@ class Yue2Backend(Backend):
         if self.pipe is None:
             return
         self.pipe = None
-        import gc
-        gc.collect()
-        try:
-            import torch
-            if torch.backends.mps.is_available():
-                torch.mps.empty_cache()
-        except Exception:  # torch missing or no MPS: nothing more to free
-            pass
+        free_caches()
 
     def generate(self, req, on_progress, cancelled):
         # ponytail: no MPS watermark cap here, unmeasured on long songs and a wrong cap could break generation; if it grows
@@ -427,6 +436,8 @@ class Yue2Backend(Backend):
             if cancelled.is_set():  # the pipeline raises InterruptedError when cancelled
                 raise Cancelled()
             raise
+        finally:
+            free_caches()
         if cancelled.is_set():
             raise Cancelled()
         song.save_artifacts(out)

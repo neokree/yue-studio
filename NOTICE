@@ -5,7 +5,9 @@ Third-party design credit
 The MLX engine (engine/mlx_ar.py, engine/mlx_nar.py, engine/mlx_pipeline.py, engine/mlx_convert.py) follows the
 approach of YuE Studio by Tony Weston, https://github.com/tonywestonuk/YuE-Studio (Apache License 2.0):
 8-bit MLX weights for the bandwidth-bound token loop (src/yue2/ar_mlx.py), the PyTorch-prefill / MLX-velocity split for
-acoustic flow matching (src/yue2/nar_mlx.py) and the MLX-vs-PyTorch token agreement check (tools/bench_ar_mlx.py).
+acoustic flow matching (src/yue2/nar_mlx.py), the MLX-vs-PyTorch token agreement check (tools/bench_ar_mlx.py), the
+"lean" PyTorch model without its acoustic modules (src/yue2/lean.py) and giving the token weights back while the
+acoustic stage runs (trim_gpu_memory in tools/yue2_worker.py).
 No source file of that project is copied here; these files are an independent implementation written against the
 upstream yue2 package. Thanks to Tony for publishing the measurements and the method.
 

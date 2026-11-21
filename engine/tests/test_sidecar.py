@@ -486,3 +486,17 @@ def test_fetch_url_resumes_verifies_and_skips_a_good_file(tmp_path, monkeypatch,
         srv.shutdown()
     last = [json.loads(l) for l in capsys.readouterr().out.splitlines()][-1]
     assert last["type"] == "progress" and last["done"] <= last["total"]
+
+
+def test_generate_gives_the_mlx_and_mps_caches_back(tmp_path, monkeypatch):
+    import types
+    cleared = []
+    monkeypatch.setitem(sys.modules, "mlx.core", types.SimpleNamespace(clear_cache=lambda: cleared.append(1)))
+    backends.free_caches()
+    assert cleared == [1]
+    monkeypatch.delenv("YUE2_STUDIO_MANIFEST", raising=False)
+    b = backends.Yue2Backend(tmp_path)
+    b.pipe = FakePipeline()
+    b.generate({"out": str(tmp_path / "o"), "seed": 5, "cot": "full", "style": "s", "lyrics": "l"},
+               lambda *a, **k: None, threading.Event())
+    assert cleared == [1, 1]  # after every song, not only on unload
