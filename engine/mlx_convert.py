@@ -51,7 +51,7 @@ def estimated_bytes(cfg):
     return total
 
 
-def convert(src, out):
+def convert(src, out, on_progress=None):
     import mlx.core as mx
     import mlx_ar
     src, out = Path(src), Path(out)
@@ -68,12 +68,14 @@ def convert(src, out):
         a = tensors[name]
         return a if a.dtype == mx.bfloat16 else a.astype(mx.bfloat16)
 
-    flat = mlx_ar.quantize_flat(mlx_ar.ar_tensors(get, cfg["num_hidden_layers"]))
+    flat = mlx_ar.quantize_flat(mlx_ar.ar_tensors(get, cfg["num_hidden_layers"]), on_progress)
     out.mkdir(parents=True, exist_ok=True)
     meta = {"format": FORMAT, "recipe_version": RECIPE_VERSION, "bits": mlx_ar.BITS, "group_size": mlx_ar.GROUP_SIZE,
             "mode": mlx_ar.MODE, "model": cfg}
     mx.save_safetensors(str(out / "weights.safetensors"), flat, metadata={"format": FORMAT})
     (out / "config.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    if on_progress is not None:
+        on_progress(1.0)
     return out
 
 

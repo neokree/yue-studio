@@ -46,6 +46,7 @@ class Paths {
   String get setupState => p.join(dataDir, 'setup-state.json');
   String get sidecar => p.join(engineDir, 'sidecar.py');
   String get fetcher => p.join(engineDir, 'fetch.py');
+  String get modelset => p.join(engineDir, 'modelset.py');
 
   /// Creates the data dir and copies bundled engine scripts (and uv) out of the asset bundle.
   Future<void> prepare([AssetBundle? bundle]) async {

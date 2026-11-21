@@ -31,6 +31,7 @@ flutter:
     - engine/sidecar.py
     - engine/backends.py
     - engine/fetch.py
+    - engine/modelset.py
     - engine/sheetsage_wrap.py
     - engine/mlx_ar.py
     - engine/mlx_nar.py

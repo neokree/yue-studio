@@ -1,0 +1,135 @@
+{
+  "schema": 1,
+  "set": "yue2-mlx8-1",
+  "comment": "Model set read by engine/modelset.py. Bump 'set' (and the models step id in real.json) whenever artifacts change.",
+  "artifacts": [
+    {
+      "id": "yue2-3b",
+      "kind": "hf",
+      "label": "YuE2 3B model",
+      "repo": "m-a-p/YuE2-3B",
+      "revision": "8f24312f187763b9854adeec87e437e2b03bbff1",
+      "files": [
+        {
+          "path": "LICENSE",
+          "size": 20309,
+          "git_sha1": "5b4b50fd3e4d4cadbc54c49cab3552d0eb303d48"
+        },
+        {
+          "path": "THIRD_PARTY_NOTICES.md",
+          "size": 793,
+          "git_sha1": "8178461b1f6ec6f9977cf0e03b93abd39f5ba1af"
+        },
+        {
+          "path": "config.json",
+          "size": 959,
+          "git_sha1": "9584e50ba9d6e487690544e14dd7555edbe27973"
+        },
+        {
+          "path": "generation_config.json",
+          "size": 204,
+          "git_sha1": "041d89f512a1b79c13e1a3dee54b5a9bc7c26cad"
+        },
+        {
+          "path": "licenses/SnakeBeta-NVIDIA-MIT.txt",
+          "size": 1076,
+          "git_sha1": "e9663595cc28938f88d6299acd3ba791542e4c0c"
+        },
+        {
+          "path": "licenses/stable-audio-tools-MIT.txt",
+          "size": 1069,
+          "git_sha1": "f119f94cf2ec8269020dd0d8140a4c4b83cc65a1"
+        },
+        {
+          "path": "model.safetensors",
+          "size": 7261441640,
+          "sha256": "1d55c42c1a9875c34f5d736e15078449992b044e807ce2a138e6cf289a1e59e9"
+        },
+        {
+          "path": "modeling_yue2.py",
+          "size": 32983,
+          "git_sha1": "9e2b9924b6e277cab5905771ac9afc068267ee8b"
+        },
+        {
+          "path": "qwen.tiktoken",
+          "size": 2561218,
+          "git_sha1": "9b9b0e0416d84d7c88333eb261c77e5fe2d7f7be"
+        },
+        {
+          "path": "weights_manifest.json",
+          "size": 179,
+          "git_sha1": "5ac0adb948bf8d8987ce7a1401fc39d0842b709d"
+        },
+        {
+          "path": "yue2_generation_config.json",
+          "size": 466,
+          "git_sha1": "f8214009f5bb5425319e4519b12e4853ad72acf3"
+        }
+      ]
+    },
+    {
+      "id": "yue2-vae",
+      "kind": "hf",
+      "label": "YuE2 audio decoder",
+      "repo": "m-a-p/YuE2-Vae",
+      "revision": "152733a19ad43aa67e367f9b5503ef8075bb5126",
+      "files": [
+        {
+          "path": "LICENSE",
+          "size": 20309,
+          "git_sha1": "5b4b50fd3e4d4cadbc54c49cab3552d0eb303d48"
+        },
+        {
+          "path": "THIRD_PARTY_NOTICES.md",
+          "size": 793,
+          "git_sha1": "8178461b1f6ec6f9977cf0e03b93abd39f5ba1af"
+        },
+        {
+          "path": "config.json",
+          "size": 1378,
+          "git_sha1": "f68832bef1b99f53dd70460f6b0d336971a664b8"
+        },
+        {
+          "path": "licenses/SnakeBeta-NVIDIA-MIT.txt",
+          "size": 1076,
+          "git_sha1": "e9663595cc28938f88d6299acd3ba791542e4c0c"
+        },
+        {
+          "path": "licenses/stable-audio-tools-MIT.txt",
+          "size": 1069,
+          "git_sha1": "f119f94cf2ec8269020dd0d8140a4c4b83cc65a1"
+        },
+        {
+          "path": "model.safetensors",
+          "size": 530512720,
+          "sha256": "807ce9d5149fa27c5ad3e6582058469852e908f6c5acc8c8aa338e7ab7751346"
+        },
+        {
+          "path": "modeling_vae.py",
+          "size": 25265,
+          "git_sha1": "79014d26619982b3eaa9b9c987c31d6f931930b0"
+        },
+        {
+          "path": "weights_manifest.json",
+          "size": 178,
+          "git_sha1": "c663bbfcc6238d5b35cd61bee56e6aab4c7e3876"
+        }
+      ]
+    },
+    {
+      "id": "yue2-3b-ar-mlx-q8",
+      "kind": "derived",
+      "label": "YuE2 token weights for Apple Silicon (8-bit)",
+      "recipe": "yue2-ar-mlx-q8",
+      "recipe_version": 1,
+      "inputs": [
+        "yue2-3b"
+      ],
+      "when": [
+        "mlx"
+      ],
+      "size": 2301446144
+    }
+  ],
+  "retire": []
+}

@@ -172,19 +172,19 @@ void main() {
     expect(find.text('Your private-first music generation studio. Music is generated locally.'), findsNothing);
   });
 
-  testWidgets('8 real manifest steps fit the 1040x780 first-run window, sizes sum to the total', (tester) async {
+  testWidgets('7 real manifest steps fit the 1040x780 first-run window, sizes sum to the total', (tester) async {
     tester.view.physicalSize = const Size(1040, 780);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final real = SetupManifest.read('engine/manifests/real.json');
-    expect(real.steps.length, 8);
+    expect(real.steps.length, 7);
     expect(real.steps.every((s) => s.bytes > 0), isTrue);
     expect(real.steps.fold<int>(0, (a, s) => a + s.bytes), real.bytes);
     final i = Installer(paths: paths, manifest: real, runner: FakeRunner((_, _) async {}), freeBytes: (_) async => 100000000000, probe: _Passing());
     await tester.pumpWidget(MaterialApp(theme: buildTheme(Brightness.light), home: SetupScreen(installer: i)));
     expect(tester.takeException(), isNull);
-    expect(find.text('0.0 of 13.5 GB'), findsOneWidget);
-    expect(find.text('7.3 GB'), findsOneWidget);
+    expect(find.text('0.0 of 15.8 GB'), findsOneWidget);
+    expect(find.text('10.1 GB'), findsOneWidget); // models step: 3B + decoder + 8-bit MLX token weights
     expect(find.text('17 MB'), findsNWidgets(2));
     expect(find.text('1.7 GB'), findsOneWidget);
     expect(find.text('1.2 GB'), findsOneWidget);
@@ -292,6 +292,27 @@ void main() {
     expect(r.ran, isEmpty);
   });
 
+  test('an update is not held to the fresh-install disk minimum, and a models step is sized by modelset.py', () async {
+    final m = SetupManifest.fromJson({
+      'name': 't',
+      'bytes': 11800000000,
+      'steps': [
+        {'id': 'py', 'kind': 'python', 'label': 'Python 3.12', 'version': '3.12'},
+        {'id': 'venv2', 'kind': 'venv', 'label': 'Engine environment', 'name': 'yue2', 'python': '3.12', 'packages': [], 'bytes': 1700000000},
+        {'id': 'models2', 'kind': 'models', 'label': 'YuE2 models', 'manifest': 'models.json', 'venv': 'yue2', 'bytes': 10100000000},
+      ],
+    });
+    final r = FakeRunner((_, _) async {});
+    // 12 GB free: under the 15 GB fresh-install minimum, but the weights are already there (adopted, not downloaded)
+    final i = Installer(paths: paths, manifest: m, done: {'py'}, runner: r, freeBytes: (_) async => 12000000000,
+        probe: _Fixed(const Hardware(memoryBytes: 48 * Requirements.gib, freeDiskBytes: 12 * Requirements.gb)));
+    await i.install();
+    expect(i.preflight!.ok, isTrue);
+    expect(i.diskShort, isNull);
+    expect(r.ran, ['venv2', 'models2']);
+    expect(i.complete, isTrue);
+  });
+
   testWidgets('low free disk: names the problem, runs nothing, button becomes Check again', (tester) async {
     final r = FakeRunner((_, _) async {});
     final i = Installer(paths: paths, manifest: manifest, runner: r, freeBytes: (_) async => 100000000000, probe: _Fixed(const Hardware(memoryBytes: 8 * Requirements.gib, freeDiskBytes: 5 * Requirements.gb)));
@@ -346,6 +367,37 @@ void main() {
     expect(seen.first, (0, 10000000));
     expect(seen.last.$1, greaterThanOrEqualTo(4000000));
     expect(seen.every((e) => e.$1 <= 9700000 && e.$2 == 10000000), isTrue);
+  });
+
+  test('a models step runs modelset.py migrate in the venv and shows its byte progress', () async {
+    final venvBin = Directory('${tmp.path}/venvs/yue2/bin')..createSync(recursive: true);
+    final args = File('${tmp.path}/args.txt');
+    File('${venvBin.path}/python').writeAsStringSync(
+      '#!/bin/sh\necho "\$@" > "${args.path}"\necho Checking models\n'
+      'echo \'{"type":"progress","done":0,"total":200}\'\necho \'{"type":"progress","done":200,"total":200}\'\n'
+      'echo \'{"type":"done","set":"s1"}\'\n',
+    );
+    await Process.run('chmod', ['+x', '${venvBin.path}/python']);
+    final p = Paths(dataDir: tmp.path, uv: '/none', engineDir: '/eng', manifest: '');
+    final step = SetupStep({'id': 'models-s1', 'kind': 'models', 'manifest': 'models.json', 'venv': 'yue2', 'bytes': 200});
+    final seen = <(int?, int?)>[];
+    await ProcessStepRunner(p).run(step, ({phase, progress, doneBytes, totalBytes, detail}) {
+      if (doneBytes != null) seen.add((doneBytes, totalBytes));
+    });
+    expect(args.readAsStringSync().trim(), '/eng/modelset.py migrate --data-dir ${tmp.path} --manifest /eng/manifests/models.json');
+    expect(seen, [(0, 200), (200, 200)]);
+  });
+
+  test('a models step that reports an error fails with its message', () async {
+    final venvBin = Directory('${tmp.path}/venvs/yue2/bin')..createSync(recursive: true);
+    File('${venvBin.path}/python').writeAsStringSync('#!/bin/sh\necho \'{"type":"error","message":"Not enough free disk space"}\'\nexit 1\n');
+    await Process.run('chmod', ['+x', '${venvBin.path}/python']);
+    final p = Paths(dataDir: tmp.path, uv: '/none', engineDir: '/eng', manifest: '');
+    final step = SetupStep({'id': 'models-s1', 'kind': 'models', 'manifest': 'models.json', 'venv': 'yue2'});
+    await expectLater(
+      ProcessStepRunner(p).run(step, ({phase, progress, doneBytes, totalBytes, detail}) {}),
+      throwsA(isA<SetupException>().having((e) => e.message, 'message', 'Not enough free disk space')),
+    );
   });
 }
 

@@ -248,8 +248,14 @@ def test_yue2_backend_is_offline_and_pinned(tmp_path, monkeypatch):
 def test_real_manifest_pins_every_model():
     m = json.loads((Path(__file__).resolve().parent.parent / "manifests" / "real.json").read_text())
     hf = [s for s in m["steps"] if s["kind"] == "hf"]
-    assert len(hf) == 4 and all(len(s["revision"]) == 40 and s["revision"] != "main" for s in hf)
-    assert m["bytes"] >= sum(s["bytes"] for s in hf)
+    assert len(hf) == 2 and all(len(s["revision"]) == 40 and s["revision"] != "main" for s in hf)
+    # the YuE2 weights moved into the declarative model set; it pins its own revisions
+    models = [s for s in m["steps"] if s["kind"] == "models"]
+    assert len(models) == 1
+    ms = json.loads((Path(__file__).resolve().parent.parent / "manifests" / models[0]["manifest"]).read_text())
+    pinned = [a for a in ms["artifacts"] if a["kind"] == "hf"]
+    assert len(pinned) == 2 and all(len(a["revision"]) == 40 for a in pinned)
+    assert m["bytes"] >= sum(s["bytes"] for s in hf + models)
     venv = next(s for s in m["steps"] if s["id"] == "venv-sheetsage2")
     assert "soundfile==0.14.0" in venv["packages"] and venv["requirements"].endswith("requirements.txt")
 

@@ -84,6 +84,22 @@ class ProcessStepRunner implements StepRunner {
           report,
           json: true,
         );
+      case 'models':
+        // Model-set migration (engine/modelset.py, PROTOCOL.md section 5): downloads/builds what the set needs, verifies,
+        // switches atomically, then deletes models the set no longer uses. Same JSON progress lines as fetch.py.
+        report(phase: 'connecting');
+        await _exec(
+          paths.venvPython(raw['venv'] as String),
+          [
+            paths.modelset,
+            'migrate',
+            '--data-dir', paths.dataDir,
+            '--manifest', p.join(paths.engineDir, 'manifests', raw['manifest'] as String? ?? 'models.json'),
+          ],
+          env,
+          report,
+          json: true,
+        );
       default:
         throw SetupException('Unknown setup step "${step.kind}".');
     }

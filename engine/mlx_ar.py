@@ -60,16 +60,19 @@ def is_quantized_name(name):
     return name.rsplit(".", 1)[-1] in QUANTIZED
 
 
-def quantize_flat(tensors):
-    """{name: array} -> flat {name.q|.scales|.biases: array} for quantized matrices, {name: array} for the rest."""
+def quantize_flat(tensors, on_progress=None):
+    """{name: array} -> flat {name.q|.scales|.biases: array} for quantized matrices, {name: array} for the rest.
+    on_progress(fraction) is called after each tensor (conversion progress in setup)."""
     flat = {}
-    for name, w in tensors.items():
+    for done, (name, w) in enumerate(tensors.items(), 1):
         if is_quantized_name(name):
             wq, s, b = quantize(w)
             flat[name + ".q"], flat[name + ".scales"], flat[name + ".biases"] = wq, s, b
         else:
             flat[name] = w
         mx.eval(*[v for k, v in flat.items() if k.startswith(name)])
+        if on_progress is not None:
+            on_progress(0.95 * done / len(tensors))  # the last 5%: writing the file
     return flat
 
 

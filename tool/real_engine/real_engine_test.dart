@@ -80,7 +80,9 @@ Future<List<int>> childFootprintsKb() async {
 }
 
 /// Hard ceilings, so a slow or heavy engine cannot pass silently (the old release wheel took 16+ min and 52 GB).
-const maxRssGb = 16.0;
+// MLX keeps the PyTorch model loaded (acoustic prefill, VAE, fallback) next to the 8-bit token weights and the bf16
+// acoustic copy: measured 18 GB (145 s song) and 21 GB (180 s, cot=melody) on an M4 Pro; PyTorch alone stayed under 16.
+const maxRssGb = 26.0;
 // 6.5x: measured 4.9x for a 174 s song on an M4 Pro (time grows faster than length), plus margin.
 const wallPerAudioSecond = 6.5;
 const longTranscribeWall = Duration(seconds: 120);
@@ -380,6 +382,7 @@ void main() {
     // 4b. the same transcription on a >= 200 s MP3 at 44.1 kHz: the memory and time ceilings must hold
     // (rebuilt every run: a song of 150 s or more is used as it is, a shorter one is repeated up to >= 205 s)
     final longIn = p.join(_root, '.scratch', 'long-input', 'long.mp3');
+    Directory(p.dirname(longIn)).createSync(recursive: true);
     final made = await Process.run(
       p.join(dataDir, 'venvs', 'sheetsage2', 'bin', 'python'),
       [

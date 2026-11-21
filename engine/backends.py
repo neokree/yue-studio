@@ -224,7 +224,10 @@ def select_engine(env=None, config=None, system=None, machine=None, mem_gb=None,
 
     def choice(env_key, cfg_key, default):
         value = str(env.get(env_key) or config.get(cfg_key) or default).strip().lower()
-        return value if value in ENGINE_CHOICES else "auto"
+        if value not in ENGINE_CHOICES:
+            print(f"engine: unknown {env_key}/{cfg_key} value {value!r}, using auto", file=sys.stderr, flush=True)
+            return "auto"
+        return value
 
     def resolve(wanted):
         if wanted == "torch":
@@ -237,7 +240,7 @@ def select_engine(env=None, config=None, system=None, machine=None, mem_gb=None,
             return "mlx", "requested"
         mem = memory_gb() if mem_gb is None else mem_gb
         if mem < MLX_MIN_MEMORY_GB:
-            return "torch", f"{mem:.0f} GB memory < {MLX_MIN_MEMORY_GB} GB"
+            return "torch", f"{mem:.1f} GB memory < {MLX_MIN_MEMORY_GB} GB"
         return "mlx", "auto"
 
     ar_wanted = choice("YUE2_STUDIO_ENGINE", "engine", "auto")
@@ -249,14 +252,29 @@ def select_engine(env=None, config=None, system=None, machine=None, mem_gb=None,
 
 # ---------------------------------------------------------------- real: YuE2 (torch) + SheetSage2 (subprocess)
 
-def pinned_revisions():
-    """{repo: sha} from the setup manifest, so generation loads exactly the snapshots setup fetched."""
+def pinned_revisions(data_dir=None):
+    """{repo: sha} of the YuE2 models, so generation loads exactly the snapshots setup fetched and verified.
+
+    Source, in order: the switched model state (<data>/models/installed.json, written by modelset.py), the model-set
+    manifest (engine/manifests/models.json), and hf steps of the setup manifest (installs from before model sets)."""
+    import modelset
+    state = modelset.installed(data_dir) if data_dir is not None else None
+    if state:
+        return {e["repo"]: e["revision"] for e in state["artifacts"].values() if e.get("kind") == "hf"}
+    try:
+        manifest = modelset.Manifest.read(os.environ.get("YUE2_STUDIO_MODELS_MANIFEST") or modelset.DEFAULT_MANIFEST)
+        pins = {a.raw["repo"]: a.raw["revision"] for a in manifest.artifacts if a.kind == "hf"}
+    except (OSError, ValueError, KeyError, modelset.MigrationError):
+        pins = {}
     path = Path(os.environ.get("YUE2_STUDIO_MANIFEST") or ENGINE_DIR / "manifests" / "real.json")
     try:
         steps = json.loads(path.read_text(encoding="utf-8"))["steps"]
     except (OSError, ValueError, KeyError):
-        return {}
-    return {s["repo"]: s["revision"] for s in steps if s.get("kind") == "hf"}
+        return pins
+    return {**{s["repo"]: s["revision"] for s in steps if s.get("kind") == "hf"}, **pins}
+
+
+AR_ARTIFACT_ID = "yue2-3b-ar-mlx-q8"
 
 
 class Yue2Backend(Backend):
@@ -278,7 +296,7 @@ class Yue2Backend(Backend):
             return
         if on_progress:
             on_progress("load", 0, None)
-        pins = pinned_revisions()
+        pins = pinned_revisions(self.data)
         kwargs = dict(vae="m-a-p/YuE2-Vae", device="auto", progress=False,
                       revision=pins.get("m-a-p/YuE2-3B"), vae_revision=pins.get("m-a-p/YuE2-Vae"),
                       cache_dir=str(self.data / "hf" / "hub"), local_files_only=True)
@@ -308,8 +326,10 @@ class Yue2Backend(Backend):
         return pipe
 
     def ar_artifact(self):
-        """Directory of the cached 8-bit MLX token weights, or None (then they are quantized at load time)."""
-        return None
+        """Directory of the cached 8-bit MLX token weights (installed by modelset.py), or None: then they are
+        quantized at load time from the loaded model (same weights, slower load)."""
+        import modelset
+        return modelset.artifact_dir(self.data, AR_ARTIFACT_ID)
 
     def engine_label(self):
         if self.pipe is not None and hasattr(self.pipe, "engine_label"):

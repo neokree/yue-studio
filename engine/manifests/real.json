@@ -1,6 +1,6 @@
 {
   "name": "real",
-  "bytes": 13524863121,
+  "bytes": 15793810951,
   "steps": [
     {
       "id": "python-3.12",
@@ -22,22 +22,12 @@
       "bytes": 1700000000
     },
     {
-      "id": "hf-yue2-3b",
-      "kind": "hf",
-      "label": "YuE2 3B model",
-      "repo": "m-a-p/YuE2-3B",
-      "revision": "8f24312f187763b9854adeec87e437e2b03bbff1",
-      "bytes": 7295777199,
-      "venv": "yue2"
-    },
-    {
-      "id": "hf-yue2-vae",
-      "kind": "hf",
-      "label": "YuE2 audio decoder",
-      "repo": "m-a-p/YuE2-Vae",
-      "revision": "152733a19ad43aa67e367f9b5503ef8075bb5126",
-      "bytes": 531344799,
-      "venv": "yue2"
+      "id": "models-yue2-mlx8-1",
+      "kind": "models",
+      "label": "YuE2 models",
+      "manifest": "models.json",
+      "venv": "yue2",
+      "bytes": 10096069828
     },
     {
       "id": "python-3.11",

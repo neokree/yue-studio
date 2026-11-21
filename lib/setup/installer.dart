@@ -64,7 +64,10 @@ class Installer extends ChangeNotifier {
   bool get blocked => preflight != null && !preflight!.ok;
 
   Future<bool> runPreflight() async {
-    preflight = checkRequirements(await probe.read(paths.dataDir));
+    final h = await probe.read(paths.dataDir);
+    // An update (some steps already installed) keeps what it has: the byte check in install() and modelset.py's own
+    // check cover what is left. The fixed minimum is for a fresh install only, or a 12 GB-free user is locked out.
+    preflight = states.values.any((s) => s.status == StepStatus.done) ? Preflight(h, const []) : checkRequirements(h);
     notifyListeners();
     return preflight!.ok;
   }
@@ -113,7 +116,11 @@ class Installer extends ChangeNotifier {
     try {
       if (!await runPreflight()) return;
       Directory(paths.dataDir).createSync(recursive: true);
-      final remaining = manifest.steps.where((s) => states[s.id]!.status != StepStatus.done).fold<int>(0, (a, s) => a + weightOf(s));
+      // A models step is left out: it adopts weights already on disk, so its manifest bytes overstate what it needs;
+      // modelset.py checks free space against what it will actually download and build.
+      final remaining = manifest.steps
+          .where((s) => states[s.id]!.status != StepStatus.done && s.kind != 'models')
+          .fold<int>(0, (a, s) => a + weightOf(s));
       final need = remaining + diskMarginBytes;
       final free = await _freeBytes(paths.dataDir);
       if (free != null && free < need) {
