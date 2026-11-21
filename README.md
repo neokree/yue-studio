@@ -31,7 +31,7 @@ Screens from the approved design ([design/proposal.html](design/proposal.html)),
 
 ## Install
 
-1. Download [YuE2-Studio.dmg](https://github.com/neokree/yue-studio/releases/download/v0.2.0/YuE2-Studio-0.2.0.dmg)
+1. Download [YuE2-Studio.dmg](https://github.com/neokree/yue-studio/releases/download/v0.2.1/YuE2-Studio-0.2.1.dmg)
 2. Drag **YuE² Studio** into the **Applications** folder.
 3. Open the app from Applications. 
 

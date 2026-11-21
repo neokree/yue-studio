@@ -2,7 +2,7 @@ name: yue2_studio
 description: "YuE2 Studio: unofficial macOS client for the YuE2 open music model."
 publish_to: 'none'
 
-version: 0.2.0+4
+version: 0.2.1+5
 
 environment:
   sdk: ^3.12.2
