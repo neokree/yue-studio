@@ -53,6 +53,15 @@ class TranscribeRequest extends EngineRequest {
   Map<String, dynamic> toJson() => {'type': 'transcribe', 'job': job, 'audio': audio, 'out': out, 'mode': mode};
 }
 
+/// Splits [audio] into six stems (drums, bass, other, vocals, guitar, piano) written as `<name>.flac` into [out].
+class StemsRequest extends EngineRequest {
+  const StemsRequest({required this.job, required this.audio, required this.out});
+  final String job, audio, out;
+
+  @override
+  Map<String, dynamic> toJson() => {'type': 'stems', 'job': job, 'audio': audio, 'out': out};
+}
+
 class CancelRequest extends EngineRequest {
   const CancelRequest(this.job);
   final String job;

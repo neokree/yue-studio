@@ -68,7 +68,29 @@ class ProcessStepRunner implements StepRunner {
             env,
             report,
           );
+          // Packages whose declared dependencies would replace pinned ones (demucs asks for a torchaudio built for
+          // another torch): installed as is, on top of the environment above.
+          final noDeps = [...?(raw['no_deps'] as List?)?.cast<String>()];
+          if (noDeps.isNotEmpty) {
+            await _exec(paths.uv, ['pip', 'install', '--no-deps', '--python', p.join(venv, 'bin', 'python'), ...noDeps], env, report);
+          }
         });
+      case 'url':
+        // One file from a URL, checked against its sha256 (fetch.py --url; resumes a partial download).
+        report(phase: 'connecting');
+        await _exec(
+          paths.venvPython(raw['venv'] as String),
+          [
+            paths.fetcher,
+            '--url', raw['url'] as String,
+            '--sha256', raw['sha256'] as String,
+            '--size', '${step.bytes}',
+            '--dest', p.join(paths.dataDir, raw['dest'] as String),
+          ],
+          env,
+          report,
+          json: true,
+        );
       case 'hf':
         final local = raw['local_dir'] as String?;
         report(phase: 'connecting');

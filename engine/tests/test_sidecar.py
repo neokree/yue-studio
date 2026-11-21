@@ -182,6 +182,33 @@ def test_transcribe(sc, tmp_path):
         assert (tmp_path / mode / "score.abc").read_text().startswith("X:")
 
 
+def test_stems(sc, tmp_path):
+    out = tmp_path / "song" / "stems"
+    out.parent.mkdir()
+    sc.send({"type": "stems", "job": "s", "audio": str(tmp_path / "x.wav"), "out": str(out)})
+    evs = sc.until()
+    assert evs[0] == {"type": "progress", "job": "s", "stage": "stems", "done": 0, "total": None}
+    assert evs[-1] == {"type": "result", "job": "s", "dir": str(out)}
+    assert sorted(f.stem for f in out.iterdir()) == sorted(backends.STEMS)
+    sc.send({"type": "stems", "job": "t", "out": str(out)})
+    assert sc.next() == {"type": "error", "job": "t", "message": "missing field: audio", "cancelled": False}
+
+
+def test_real_mode_stems_without_model_errors(tmp_path):
+    p = subprocess.Popen([sys.executable, str(SIDECAR), "--data-dir", str(tmp_path)], stdin=subprocess.PIPE,
+                         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                         env={k: v for k, v in os.environ.items() if not k.startswith("HF_")})
+    try:
+        assert json.loads(p.stdout.readline())["type"] == "ready"
+        p.stdin.write(json.dumps({"type": "stems", "job": "s", "audio": "a.wav", "out": str(tmp_path / "o")}) + "\n")
+        p.stdin.flush()
+        ev = json.loads(p.stdout.readline())
+        assert ev["type"] == "error" and "not installed" in ev["message"]
+    finally:
+        p.kill()
+        p.wait()
+
+
 def test_shutdown_idle(sc):
     sc.send({"type": "shutdown"})
     assert sc.p.wait(timeout=5) == 0
@@ -406,3 +433,56 @@ def test_abc_seconds():
     two_voices = "M:4/4\nQ:1/4=120\nV: Vocal\nZ4|\nV: Ins\nc8|c8|\nV: Vocal\nM:2/4\n\"G\"c4|c4|]\n"
     assert backends.abc_seconds(two_voices) == pytest.approx(10.0)  # Vocal: 4 bars of 4/4 + 2 of 2/4 = 20 beats at 120
     assert backends.abc_seconds("no score here") is None
+
+
+def test_fetch_url_resumes_verifies_and_skips_a_good_file(tmp_path, monkeypatch, capsys):
+    import hashlib
+    import http.server
+    import types
+    monkeypatch.setitem(sys.modules, "huggingface_hub", types.SimpleNamespace(HfApi=None, constants=None, hf_hub_download=None))
+    sys.path.insert(0, str(SIDECAR.parent))
+    import fetch
+    body = bytes(range(256)) * 4000
+    ranges = []
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            start = int(self.headers.get("Range", "bytes=0-")[6:].rstrip("-"))
+            ranges.append(start)
+            if start >= len(body):  # what S3 / CloudFront answer to a Range past the end
+                self.send_response(416)
+                self.end_headers()
+                return
+            self.send_response(206 if start else 200)
+            self.send_header("Content-Length", str(len(body) - start))
+            self.end_headers()
+            self.wfile.write(body[start:])
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    url, want, dest = f"http://127.0.0.1:{srv.server_port}/m.th", hashlib.sha256(body).hexdigest(), tmp_path / "d" / "m.th"
+    try:
+        dest.parent.mkdir()
+        (tmp_path / "d" / "m.th.part").write_bytes(body[:1000])  # an interrupted download
+        fetch.fetch_url(url, want, len(body), dest)
+        assert dest.read_bytes() == body and ranges == [1000] and not (tmp_path / "d" / "m.th.part").exists()
+        fetch.fetch_url(url, want, len(body), dest)  # already there: no request
+        assert ranges == [1000]
+        dest.unlink()
+        with pytest.raises(RuntimeError, match="hash"):
+            fetch.fetch_url(url, "0" * 64, len(body), dest)
+        assert not dest.exists() and not (tmp_path / "d" / "m.th.part").exists()
+        (tmp_path / "d" / "m.th.part").write_bytes(body)  # complete .part, rename never happened: no 416 loop
+        fetch.fetch_url(url, want, len(body), dest)
+        assert dest.read_bytes() == body and ranges == [1000, 0]  # 0: the bad-hash attempt above; none here
+        (tmp_path / "d" / "m.th.part").write_bytes(body + b"junk")  # longer than the file: start over
+        dest.unlink()
+        fetch.fetch_url(url, want, len(body), dest)
+        assert dest.read_bytes() == body and ranges == [1000, 0, 0]
+    finally:
+        srv.shutdown()
+    last = [json.loads(l) for l in capsys.readouterr().out.splitlines()][-1]
+    assert last["type"] == "progress" and last["done"] <= last["total"]

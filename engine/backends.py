@@ -5,6 +5,7 @@ A Backend has three methods (swap the class to swap the engine, e.g. YuE2-Turbo 
   load(on_progress)                                  load weights (idempotent, lazy)
   generate(request, on_progress, cancelled) -> dict  result fields: dir, audio, seed, duration, timings
   transcribe(request, on_progress, cancelled) -> dict  result fields: dir
+  stems(request, on_progress, cancelled) -> dict  result fields: dir (the stems folder, one <name>.flac per STEMS)
 
 on_progress(stage, done, total) reports a protocol stage (PROTOCOL.md section 3).
 cancelled is a threading.Event; a backend raises Cancelled promptly once it is set.
@@ -28,6 +29,8 @@ from pathlib import Path
 ENGINE_DIR = Path(__file__).resolve().parent
 FAKE_STEP = float(os.environ.get("YUE2_FAKE_STEP_SECONDS", "0.3"))
 STAGES = ("load", "abc", "semantic", "nar", "vae")
+STEMS = ("drums", "bass", "other", "vocals", "guitar", "piano")  # Demucs htdemucs_6s sources
+DEMUCS_CHECKPOINT = "hub/checkpoints/5c90dfd2-34c22ccb.th"  # under <data>/models/demucs (TORCH_HOME), setup step url
 
 
 class Cancelled(Exception):
@@ -44,6 +47,9 @@ class Backend:
         raise NotImplementedError
 
     def transcribe(self, request, on_progress, cancelled):
+        raise NotImplementedError
+
+    def stems(self, request, on_progress, cancelled):
         raise NotImplementedError
 
     def unload(self):
@@ -96,6 +102,30 @@ def abc_seconds(abc):
                        for b in re.sub(r'"[^"]*"|[\[\]:\s]', "", line).split("|") if b)
             total[voice] = total.get(voice, 0.0) + bars * meter
     return max(total.values()) / tempo * 60 if tempo and total else None
+
+
+def run_child(cmd, env, stage, on_progress, cancelled):
+    """Run an engine child process: one progress event at start, then one per ~2 s with elapsed seconds in done;
+    killed on cancel (raises Cancelled). Returns (exit code, last 600 chars of its output)."""
+    started = time.monotonic()
+    on_progress(stage, 0, None)
+    with tempfile.TemporaryFile() as log:
+        proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, env=env)
+        try:
+            while True:
+                try:
+                    proc.wait(timeout=2)
+                    break
+                except subprocess.TimeoutExpired:
+                    if cancelled.is_set():
+                        raise Cancelled()
+                    on_progress(stage, int(time.monotonic() - started), None)
+        except BaseException:
+            proc.kill()
+            proc.wait()
+            raise
+        log.seek(0)
+        return proc.returncode, log.read().decode("utf-8", "replace")[-600:]
 
 
 def nap(cancelled, seconds):
@@ -184,6 +214,15 @@ class FakeBackend(Backend):
         on_progress("transcribe", 0, None)
         nap(cancelled, FAKE_STEP)
         (out / "score.abc").write_text(FAKE_ABC, encoding="utf-8")
+        return dict(dir=str(out))
+
+    def stems(self, req, on_progress, cancelled):
+        out = Path(req["out"])
+        on_progress("stems", 0, None)
+        nap(cancelled, FAKE_STEP)
+        out.mkdir(exist_ok=True)  # no parents, as stems.py
+        for i, name in enumerate(STEMS):
+            write_wav(out / f"{name}.wav", i)
         return dict(dir=str(out))
 
 
@@ -414,24 +453,19 @@ class Yue2Backend(Backend):
             cmd.append("--melody-only")
         # HF_HOME, HF_HUB_OFFLINE, MPS fallback set in __init__; the watermarks cap the Metal pool (see mps_watermarks)
         env = dict(os.environ, PYTHONUNBUFFERED="1", **mps_watermarks(memory_gb()))
-        started = time.monotonic()
-        on_progress("transcribe", 0, None)
-        with tempfile.TemporaryFile() as log:
-            proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, env=env)
-            try:
-                while True:
-                    try:
-                        proc.wait(timeout=2)
-                        break
-                    except subprocess.TimeoutExpired:
-                        if cancelled.is_set():
-                            raise Cancelled()
-                        on_progress("transcribe", int(time.monotonic() - started), None)
-            except BaseException:
-                proc.kill()
-                proc.wait()
-                raise
-            if proc.returncode or not (out / "score.abc").exists():
-                log.seek(0)
-                raise RuntimeError("Transcription failed: " + log.read().decode("utf-8", "replace")[-600:])
+        code, log = run_child(cmd, env, "transcribe", on_progress, cancelled)
+        if code or not (out / "score.abc").exists():
+            raise RuntimeError("Transcription failed: " + log)
+        return dict(dir=str(out))
+
+    def stems(self, req, on_progress, cancelled):
+        out, model_dir = Path(req["out"]), self.data / "models" / "demucs"
+        if not (model_dir / DEMUCS_CHECKPOINT).exists():
+            raise RuntimeError("The stems model is not installed (run setup).")
+        if low_memory():
+            self.unload()  # Demucs peaks ~4.4 GB on a 145 s song; the resident YuE2 pipeline would push < 32 GB Macs to swap
+        cmd = [sys.executable, str(ENGINE_DIR / "stems.py"), req["audio"], str(out), "--model-dir", str(model_dir)]
+        code, log = run_child(cmd, dict(os.environ, PYTHONUNBUFFERED="1"), "stems", on_progress, cancelled)
+        if code or not all((out / f"{n}.flac").exists() for n in STEMS):
+            raise RuntimeError("Stem separation failed: " + log)
         return dict(dir=str(out))

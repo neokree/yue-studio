@@ -18,6 +18,7 @@ Dart (`lib/engine/`) and Python (`engine/`) both follow this file. Change it her
 |---|---|
 | `generate` | `job` (string id chosen by app), `out` (absolute dir, created by sidecar), `style`, `lyrics`, `cot` (`full` \| `melody` \| `off`), `seed` (int), `abc` (optional string: a cover score) |
 | `transcribe` | `job`, `audio` (absolute path: wav/flac/mp3/ogg), `out` (absolute dir), `mode` (`full` = Close, melody + chords \| `melody` = Free, melody only) |
+| `stems` | `job`, `audio` (absolute path), `out` (absolute dir: the song's `stems/` folder) |
 | `cancel` | `job` |
 | `shutdown` | (none) sidecar exits 0 after the current step |
 
@@ -33,6 +34,7 @@ Dart (`lib/engine/`) and Python (`engine/`) both follow this file. Change it her
 Stages, in order:
 - generate: `load` (total null, only when the pipeline is not loaded yet), `abc` (token count, total null; skipped when `cot=off` or `abc` given), `semantic` (token count, total null), `nar` (done/total), `vae` (done/total).
 - transcribe: `transcribe` (total null; one event when it starts, one per ~2 s heartbeat with elapsed seconds in `done`).
+- stems: `stems` (same heartbeat as transcribe). Result `dir` = `out`, holding `drums`, `bass`, `other`, `vocals`, `guitar`, `piano` (`.flac` real, at the input's sample rate; `.wav` fake). Real mode runs `stems.py` (Demucs htdemucs_6s, MPS) as a child process in the yue2 venv; it writes `<out>.partial` and renames it, so `out` exists only when complete. On < 32 GB Macs the YuE2 pipeline is unloaded first, as for transcribe. Measured: 145 s song in 13 s, peak 4.4 GB, M4 Pro.
 - Token-count stages emit at most one event per 25 tokens.
 
 Fake mode emits `timings` too: measured wall time of its own (short) stages.
@@ -71,8 +73,9 @@ A manifest is JSON: `{"name", "bytes" (total download estimate, for the free-dis
 | kind | fields | how the app runs it |
 |---|---|---|
 | `python` | `version` | `uv python install <version>` |
-| `venv` | `name`, `python`, `packages` (list, may be empty), `requirements` (optional path relative to data dir) | `uv venv <data>/venvs/<name> --python <python>` then `uv pip install --python <venv> ...` |
+| `venv` | `name`, `python`, `packages` (list, may be empty), `requirements` (optional path relative to data dir), `no_deps` (optional list) | `uv venv <data>/venvs/<name> --python <python>` then `uv pip install --python <venv> ...`, then `uv pip install --no-deps --python <venv> <no_deps>` (packages whose declared dependencies would replace pinned ones: demucs pulls a torchaudio for another torch; torchaudio is only imported, never used for I/O). |
 | `hf` | `repo`, `revision`, `bytes`, `local_dir` (optional, relative to data dir; else HF cache in `<data>/hf`), `venv` (venv whose python runs the fetcher) | `<venv>/bin/python <engine>/fetch.py --repo .. --revision .. [--local-dir ..]` which prints JSON lines `{"type":"progress","done":bytes,"total":bytes}` then `{"type":"done"}` or `{"type":"error","message"}`. Resumable (huggingface_hub keeps partial files). |
+| `url` | `url`, `sha256`, `bytes`, `dest` (relative to data dir), `venv` | `<venv>/bin/python <engine>/fetch.py --url .. --sha256 .. --size <bytes> --dest <data>/<dest>`: same JSON lines as `hf`; resumes `<dest>.part` with an HTTP Range request, renames only after the hash matches; a good file already at `dest` is kept. Used for the Demucs checkpoint (`models/demucs/hub/checkpoints/`, read through `TORCH_HOME`, so the engine never downloads). |
 | `models` | `manifest` (file in `engine/manifests/`), `venv`, `bytes` | `<venv>/bin/python <engine>/modelset.py migrate --data-dir <data> --manifest <engine>/manifests/<manifest>`: same JSON lines as `hf` (`done` carries `set`). |
 
 Manifests live in `engine/manifests/`: `fake.json` (python + venv, no packages, no models), `real.json` and `models.json`.

@@ -33,6 +33,7 @@ flutter:
     - engine/fetch.py
     - engine/modelset.py
     - engine/sheetsage_wrap.py
+    - engine/stems.py
     - engine/mlx_ar.py
     - engine/mlx_nar.py
     - engine/mlx_pipeline.py

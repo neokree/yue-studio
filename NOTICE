@@ -15,6 +15,13 @@ The YuE2 inference code (yue2-infer, https://github.com/multimodal-art-projectio
 as a dependency at a pinned commit and is not redistributed in this repository. The MLX modules call its sampling,
 prompting and acoustic-chunking functions unchanged.
 
+Demucs (stems)
+--------------
+Demucs (https://github.com/facebookresearch/demucs, MIT License, Copyright Meta Platforms, Inc.) is installed as a
+dependency (demucs==4.0.1) and is not redistributed here. The htdemucs_6s checkpoint (5c90dfd2-34c22ccb.th) is
+downloaded by the user from the URL the Demucs project publishes, checked against its sha256. engine/stems.py calls
+demucs.pretrained.get_model and demucs.apply.apply_model.
+
 Model weights
 -------------
 m-a-p/YuE2-3B and m-a-p/YuE2-Vae (CC BY-NC 4.0) are downloaded by the user at pinned revisions. The 8-bit MLX token

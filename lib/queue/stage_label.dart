@@ -7,6 +7,7 @@ String stageLabel(String stage) => switch (stage) {
       'nar' => t.shell.stage.nar,
       'vae' => t.shell.stage.vae,
       'transcribe' => t.shell.stage.transcribe,
+      'stems' => t.shell.stage.stems,
       _ => stage,
     };
 

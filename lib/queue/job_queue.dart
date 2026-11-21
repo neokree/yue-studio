@@ -12,16 +12,24 @@ import '../i18n/strings.g.dart';
 import '../library/library_store.dart';
 import '../library/song.dart';
 
-/// One engine job: a song to generate, or a recording to transcribe.
+/// One engine job: a song to generate, or a side job (a recording to transcribe, a song to split into stems).
 class _Job {
   _Job.generate(this.id, this.lyrics, this.sourceSeconds, this.plan)
       : transcribeAudio = null,
         transcribeMode = null,
+        stemsOut = null,
         done = null;
   _Job.transcribe(this.id, this.transcribeAudio, this.transcribeMode)
       : lyrics = '',
         sourceSeconds = null,
         plan = true,
+        stemsOut = null,
+        done = Completer<String>();
+  _Job.stems(this.id, this.transcribeAudio, this.stemsOut)
+      : lyrics = '',
+        sourceSeconds = null,
+        plan = true,
+        transcribeMode = null,
         done = Completer<String>();
 
   final String id, lyrics;
@@ -32,9 +40,12 @@ class _Job {
 
   /// False when cot is off (no score stage).
   final bool plan;
-  final String? transcribeAudio, transcribeMode;
+  final String? transcribeAudio, transcribeMode, stemsOut;
   final Completer<String>? done;
+
+  /// A side job (transcribe or stems): no song row, no estimate; [done] completes with its result.
   bool get isTranscribe => done != null;
+  bool get isStems => stemsOut != null;
 }
 
 /// FIFO queue, one engine job at a time (engine/PROTOCOL.md section 1): the next request goes out only after the
@@ -79,6 +90,12 @@ class JobQueue extends ChangeNotifier {
   /// True while any engine job runs, including a transcription.
   bool get busy => _running != null;
   bool get transcribing => _running?.isTranscribe ?? false;
+
+  /// Stage of the running side job ('transcribe' or 'stems'), null when idle or generating.
+  String? get sideStage => _running?.isTranscribe != true ? null : (_running!.isStems ? 'stems' : 'transcribe');
+
+  /// Song ids whose stems are being made or are waiting their turn.
+  Set<String> get stemming => {for (final j in [?_running, ..._pending]) if (j.isStems) j.id.substring(1)};
 
   /// Protocol stage of the running job (load, abc, semantic, nar, vae, transcribe), null before the first event.
   String? get stage => _stage;
@@ -137,6 +154,16 @@ class JobQueue extends ChangeNotifier {
     return job.done!.future;
   }
 
+  /// Splits a finished song into stems in `<song dir>/stems`; waits its turn. Completes with that folder; throws on engine error.
+  Future<String> stems(String songId) {
+    final song = library.byId(songId)!;
+    final job = _Job.stems('s$songId', p.join(library.dirOf(songId), song.audio!), p.join(library.dirOf(songId), 'stems'));
+    _pending.add(job);
+    notifyListeners();
+    _pump();
+    return job.done!.future;
+  }
+
   /// Removes a queued song (marks it failed, "Cancelled") or asks the engine to stop the running one.
   void cancel(String songId) {
     final i = _pending.indexWhere((j) => j.id == songId && !j.isTranscribe);
@@ -173,7 +200,11 @@ class JobQueue extends ChangeNotifier {
     notifyListeners();
     try {
       await engine.start();
-      if (job.isTranscribe) {
+      if (job.isStems && library.byId(job.id.substring(1)) == null) {
+        return _finish(job, error: t.shell.queue.cancelled); // the song was deleted while its stems waited
+      } else if (job.isStems) {
+        engine.send(StemsRequest(job: job.id, audio: job.transcribeAudio!, out: job.stemsOut!));
+      } else if (job.isTranscribe) {
         final out = p.join(library.root, '.transcribe', job.id);
         engine.send(TranscribeRequest(job: job.id, audio: job.transcribeAudio!, out: out, mode: job.transcribeMode!));
       } else {
@@ -226,6 +257,10 @@ class JobQueue extends ChangeNotifier {
   }
 
   void _onResult(_Job job, ResultEvent e) {
+    if (job.isStems) {
+      job.done!.complete(e.dir);
+      return _finish(job, stemsDone: true);
+    }
     if (job.isTranscribe) {
       String? abc;
       try {
@@ -291,10 +326,12 @@ class JobQueue extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _finish(_Job job, {String? error, String? abc}) {
+  void _finish(_Job job, {String? error, String? abc, bool stemsDone = false}) {
     _ticker?.cancel();
     _ticker = null;
-    if (job.isTranscribe) {
+    if (stemsDone) {
+      // completed in _onResult with the folder
+    } else if (job.isTranscribe) {
       if (error != null) {
         job.done!.completeError(Exception(error));
       } else {

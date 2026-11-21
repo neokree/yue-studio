@@ -353,6 +353,19 @@ void main() {
       report('generate cot=melody', g2);
     }
 
+    // 3b. stems of the first song (Demucs htdemucs_6s, offline from the setup's url step): six full-length flac files
+    runs['stems'] = await timed(
+      'stems (Demucs, 6 sources)',
+      () => runJob(engine, StemsRequest(job: 'real-stems', audio: audio, out: p.join(p.dirname(audio), 'stems')), 'real-stems'),
+    );
+    final st = runs['stems']!;
+    report('stems', st, generation: false);
+    for (final n in ['drums', 'bass', 'other', 'vocals', 'guitar', 'piano']) {
+      final f = File(p.join(st.result.dir, '$n.flac'));
+      expect(f.existsSync() && f.lengthSync() > 10000, isTrue, reason: 'stem $n missing or empty in ${st.result.dir}');
+    }
+    expect(st.wall, lessThan(const Duration(seconds: 120)), reason: 'measured 13 s for a 145 s song on an M4 Pro');
+
     // 4. one real transcription, Free mode (melody only), of the first song
     runs['transcribe'] = await timed(
       'transcribe (Free, melody only)',

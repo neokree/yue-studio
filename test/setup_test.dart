@@ -172,12 +172,12 @@ void main() {
     expect(find.text('Your private-first music generation studio. Music is generated locally.'), findsNothing);
   });
 
-  testWidgets('7 real manifest steps fit the 1040x780 first-run window, sizes sum to the total', (tester) async {
+  testWidgets('8 real manifest steps fit the 1040x780 first-run window, sizes sum to the total', (tester) async {
     tester.view.physicalSize = const Size(1040, 780);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final real = SetupManifest.read('engine/manifests/real.json');
-    expect(real.steps.length, 7);
+    expect(real.steps.length, 8);
     expect(real.steps.every((s) => s.bytes > 0), isTrue);
     expect(real.steps.fold<int>(0, (a, s) => a + s.bytes), real.bytes);
     final i = Installer(paths: paths, manifest: real, runner: FakeRunner((_, _) async {}), freeBytes: (_) async => 100000000000, probe: _Passing());
@@ -188,6 +188,7 @@ void main() {
     expect(find.text('17 MB'), findsNWidgets(2));
     expect(find.text('1.7 GB'), findsOneWidget);
     expect(find.text('1.2 GB'), findsOneWidget);
+    expect(find.text('55 MB'), findsOneWidget); // Demucs stems model
     // everything reachable: Install button is on screen without scrolling
     expect(tester.getBottomLeft(find.byKey(const Key('setup.install'))).dy, lessThan(780));
   });
@@ -398,6 +399,32 @@ void main() {
       ProcessStepRunner(p).run(step, ({phase, progress, doneBytes, totalBytes, detail}) {}),
       throwsA(isA<SetupException>().having((e) => e.message, 'message', 'Not enough free disk space')),
     );
+  });
+
+  test('a url step runs fetch.py --url with the hash, size and destination in the data dir', () async {
+    final venvBin = Directory('${tmp.path}/venvs/yue2/bin')..createSync(recursive: true);
+    final args = File('${tmp.path}/args.txt');
+    File('${venvBin.path}/python').writeAsStringSync(
+      '#!/bin/sh\necho "\$@" > "${args.path}"\necho \'{"type":"progress","done":55,"total":55}\'\necho \'{"type":"done"}\'\n',
+    );
+    await Process.run('chmod', ['+x', '${venvBin.path}/python']);
+    final p = Paths(dataDir: tmp.path, uv: '/none', engineDir: '/eng', manifest: '');
+    final step = SetupStep({'id': 'u', 'kind': 'url', 'url': 'https://x/m.th', 'sha256': 'ab', 'dest': 'models/m.th', 'venv': 'yue2', 'bytes': 55});
+    final seen = <int?>[];
+    await ProcessStepRunner(p).run(step, ({phase, progress, doneBytes, totalBytes, detail}) => seen.add(doneBytes));
+    expect(args.readAsStringSync().trim(), '/eng/fetch.py --url https://x/m.th --sha256 ab --size 55 --dest ${tmp.path}/models/m.th');
+    expect(seen.whereType<int>(), [55]);
+  });
+
+  test('a venv step installs its no_deps packages after the others, without dependencies', () async {
+    final log = File('${tmp.path}/uv.txt');
+    final uv = File('${tmp.path}/uv')..writeAsStringSync('#!/bin/sh\necho "\$@" >> "${log.path}"\n');
+    await Process.run('chmod', ['+x', uv.path]);
+    final p = Paths(dataDir: tmp.path, uv: uv.path, engineDir: '/eng', manifest: '');
+    final step = SetupStep({'id': 'v', 'kind': 'venv', 'name': 'yue2', 'python': '3.12', 'packages': ['torch'], 'no_deps': ['demucs==4.0.1']});
+    await ProcessStepRunner(p).run(step, ({phase, progress, doneBytes, totalBytes, detail}) {});
+    final py = '${tmp.path}/venvs/yue2/bin/python';
+    expect(log.readAsLinesSync().skip(1), ['pip install --python $py torch', 'pip install --no-deps --python $py demucs==4.0.1']);
   });
 }
 

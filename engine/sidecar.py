@@ -56,6 +56,8 @@ def run_job(req):
             seed = req.get("seed")
             seed = random.randrange(2**31) if not isinstance(seed, int) or seed < 0 else seed
             result = backend.generate({**req, "seed": seed}, progress_for(job), cancel)
+        elif req["type"] == "stems":
+            result = backend.stems(req, progress_for(job), cancel)
         else:
             result = backend.transcribe(req, progress_for(job), cancel)
         ev = dict(type="result", job=job, **result)
@@ -94,7 +96,7 @@ def handle(line):
         with _state_lock:
             if job is not None and job == current:
                 cancel.set()
-    elif kind in ("generate", "transcribe"):
+    elif kind in ("generate", "transcribe", "stems"):
         missing = [k for k in (("job", "out", "cot") if kind == "generate" else ("job", "out", "audio")) if req.get(k) in (None, "")]
         if missing:
             return emit(type="error", job=job, message="missing field: " + ", ".join(missing), cancelled=False)

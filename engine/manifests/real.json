@@ -1,6 +1,6 @@
 {
   "name": "real",
-  "bytes": 15793810951,
+  "bytes": 15848807278,
   "steps": [
     {
       "id": "python-3.12",
@@ -10,16 +10,30 @@
       "bytes": 17000000
     },
     {
-      "id": "venv-yue2-1116bea-mlx0.32.4",
+      "id": "venv-yue2-1116bea-mlx0.32.4-demucs4.0.1",
       "kind": "venv",
-      "label": "Engine environment (PyTorch, MLX, YuE2)",
+      "label": "Engine environment (PyTorch, MLX, YuE2, Demucs)",
       "name": "yue2",
       "python": "3.12",
       "packages": [
         "yue2-infer @ https://github.com/multimodal-art-projection/YuE/archive/1116bea76032bee5668e5f097294d082fa0b84f0.zip",
         "mlx==0.32.4; sys_platform == 'darwin' and platform_machine == 'arm64'"
       ],
-      "bytes": 1700000000
+      "bytes": 1700000000,
+      "no_deps": [
+        "demucs==4.0.1",
+        "julius==0.2.8",
+        "einops==0.8.2",
+        "openunmix==1.3.0",
+        "omegaconf==2.4.0",
+        "antlr4-python3-runtime==4.9.3",
+        "dora-search==0.1.13",
+        "treetable==0.2.6",
+        "submitit==1.5.4",
+        "cloudpickle==3.1.3",
+        "retrying==1.4.2",
+        "torchaudio==2.11.1"
+      ]
     },
     {
       "id": "models-yue2-mlx8-1",
@@ -28,6 +42,16 @@
       "manifest": "models.json",
       "venv": "yue2",
       "bytes": 10096069828
+    },
+    {
+      "id": "url-demucs-htdemucs6s-5c90dfd2",
+      "kind": "url",
+      "label": "Demucs stems model",
+      "url": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/5c90dfd2-34c22ccb.th",
+      "sha256": "34c22ccb381c6f9fdbf324f04e1e2fe21aaaf293f5ded163a162697ff9a02ddd",
+      "dest": "models/demucs/hub/checkpoints/5c90dfd2-34c22ccb.th",
+      "bytes": 54996327,
+      "venv": "yue2"
     },
     {
       "id": "python-3.11",

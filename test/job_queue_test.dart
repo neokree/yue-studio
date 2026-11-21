@@ -74,6 +74,43 @@ void main() {
     expect(engine.sent.whereType<GenerateRequest>().map((r) => r.job), [a, b], reason: 'c never reached the engine');
   });
 
+  test('stems: queued behind generation, sent with the song audio, completes with the folder', () async {
+    final a = add('a');
+    await settle();
+    engine.emit(ResultEvent(job: a, dir: lib.dirOf(a), audio: 'audio.wav', seed: 1, duration: 1));
+    await settle();
+    final b = add('b');
+    await settle();
+    final folder = q.stems(a);
+    await settle();
+    expect(q.stemming, {a});
+    engine.emit(ResultEvent(job: b, dir: lib.dirOf(b), audio: 'audio.wav', seed: 1, duration: 1));
+    await settle();
+    final r = engine.sent.last as StemsRequest;
+    expect((r.job, r.audio, r.out), ('s$a', '${lib.dirOf(a)}/audio.wav', '${lib.dirOf(a)}/stems'));
+    expect((q.transcribing, q.sideStage, q.running), (true, 'stems', null));
+    engine.emit(ProgressEvent(job: r.job, stage: 'stems', done: 0));
+    engine.emit(ResultEvent(job: r.job, dir: r.out));
+    expect(await folder, r.out);
+    expect(q.busy, isFalse);
+    expect(q.stemming, isEmpty);
+  });
+
+  test('stems of a song deleted while they waited are dropped, not sent', () async {
+    final a = add('a');
+    await settle();
+    engine.emit(ResultEvent(job: a, dir: lib.dirOf(a), audio: 'audio.wav', seed: 1, duration: 1));
+    await settle();
+    final b = add('b');
+    await settle();
+    final folder = q.stems(a);
+    lib.delete(a);
+    engine.emit(ResultEvent(job: b, dir: lib.dirOf(b), audio: 'audio.wav', seed: 1, duration: 1));
+    await expectLater(folder, throwsException);
+    expect(engine.sent.whereType<StemsRequest>(), isEmpty);
+    expect(q.busy, isFalse);
+  });
+
   test('transcribe shares the line with generation and returns the score', () async {
     final a = add('a');
     final score = q.transcribe('/tmp/in.wav', 'melody');

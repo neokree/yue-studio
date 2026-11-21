@@ -419,7 +419,7 @@ class _QueueStatusState extends State<_QueueStatus> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          q.running?.title ?? t.shell.stage.transcribe,
+          q.running?.title ?? stageLabel(q.sideStage ?? 'transcribe'),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(fontSize: TypeSize.caption, fontWeight: FontWeight.w600, color: c.text),

@@ -117,7 +117,8 @@
       "semantic": "Composing",
       "nar": "Rendering",
       "vae": "Decoding",
-      "transcribe": "Transcribing"
+      "transcribe": "Transcribing",
+      "stems": "Extracting stems"
     },
     "emptyHint": "Write a style and lyrics in Create, then add the song to the queue.",
     "goCreate": "Go to Create",
@@ -139,7 +140,10 @@
       "score": "Show Score",
       "delete": "Delete",
       "cancel": "Cancel Job",
-      "more": "More actions"
+      "more": "More actions",
+      "stems": "Extract Stems",
+      "stemsRunning": "Extracting Stems…",
+      "showStems": "Show Stems in Finder"
     },
     "play": "Play",
     "pause": "Pause",
@@ -159,7 +163,8 @@
     "yesterday": "Yesterday",
     "step": "Step $done of $total",
     "timeLeft": "$time left",
-    "eta": "About $time"
+    "eta": "About $time",
+    "stemsFailed": "Could not extract the stems: $message"
   },
   "score": {
     "notation": "Notation",
@@ -227,7 +232,8 @@
       "semantic": "Composing melody",
       "nar": "Rendering sound",
       "vae": "Mastering",
-      "transcribe": "Transcribing"
+      "transcribe": "Transcribing",
+      "stems": "Extracting stems"
     },
     "time": {
       "minSec": "$m min $s s",

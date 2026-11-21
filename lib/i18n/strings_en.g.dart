@@ -447,6 +447,9 @@ class Translations$library$en {
 
 	/// en: 'About $time'
 	String eta({required Object time}) => 'About ${time}';
+
+	/// en: 'Could not extract the stems: $message'
+	String stemsFailed({required Object message}) => 'Could not extract the stems: ${message}';
 }
 
 // Path: score
@@ -659,6 +662,9 @@ class Translations$library$stage$en {
 
 	/// en: 'Transcribing'
 	String get transcribe => 'Transcribing';
+
+	/// en: 'Extracting stems'
+	String get stems => 'Extracting stems';
 }
 
 // Path: library.filter
@@ -722,6 +728,15 @@ class Translations$library$menu$en {
 
 	/// en: 'More actions'
 	String get more => 'More actions';
+
+	/// en: 'Extract Stems'
+	String get stems => 'Extract Stems';
+
+	/// en: 'Extracting Stems…'
+	String get stemsRunning => 'Extracting Stems…';
+
+	/// en: 'Show Stems in Finder'
+	String get showStems => 'Show Stems in Finder';
 }
 
 // Path: shell.brand
@@ -827,6 +842,9 @@ class Translations$shell$stage$en {
 
 	/// en: 'Transcribing'
 	String get transcribe => 'Transcribing';
+
+	/// en: 'Extracting stems'
+	String get stems => 'Extracting stems';
 }
 
 // Path: shell.time
@@ -954,6 +972,7 @@ extension on Translations {
 			'library.stage.nar' => 'Rendering',
 			'library.stage.vae' => 'Decoding',
 			'library.stage.transcribe' => 'Transcribing',
+			'library.stage.stems' => 'Extracting stems',
 			'library.emptyHint' => 'Write a style and lyrics in Create, then add the song to the queue.',
 			'library.goCreate' => 'Go to Create',
 			'library.emptyLiked' => 'No liked songs yet',
@@ -970,6 +989,9 @@ extension on Translations {
 			'library.menu.delete' => 'Delete',
 			'library.menu.cancel' => 'Cancel Job',
 			'library.menu.more' => 'More actions',
+			'library.menu.stems' => 'Extract Stems',
+			'library.menu.stemsRunning' => 'Extracting Stems…',
+			'library.menu.showStems' => 'Show Stems in Finder',
 			'library.play' => 'Play',
 			'library.pause' => 'Pause',
 			'library.like' => 'Like',
@@ -989,6 +1011,7 @@ extension on Translations {
 			'library.step' => ({required Object done, required Object total}) => 'Step ${done} of ${total}',
 			'library.timeLeft' => ({required Object time}) => '${time} left',
 			'library.eta' => ({required Object time}) => 'About ${time}',
+			'library.stemsFailed' => ({required Object message}) => 'Could not extract the stems: ${message}',
 			'score.notation' => 'Notation',
 			'score.text' => 'Text',
 			'score.empty' => 'No score yet. Transcribe a recording or paste ABC text.',
@@ -1042,6 +1065,7 @@ extension on Translations {
 			'shell.stage.nar' => 'Rendering sound',
 			'shell.stage.vae' => 'Mastering',
 			'shell.stage.transcribe' => 'Transcribing',
+			'shell.stage.stems' => 'Extracting stems',
 			'shell.time.minSec' => ({required Object m, required Object s}) => '${m} min ${s} s',
 			'shell.time.min' => ({required Object m}) => '${m} min',
 			'shell.time.sec' => ({required Object s}) => '${s} s',

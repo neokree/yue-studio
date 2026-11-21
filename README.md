@@ -19,6 +19,7 @@ Screens from the approved design ([design/proposal.html](design/proposal.html)),
 - **Create**: write a style and lyrics, then generate a song.
 - **Cover**: upload a recording (wav, flac, mp3 or ogg) and generate a new version in the style and lyrics you choose.
 - **Library**: keep every song. Play, like, rename, delete and export the audio. Reuse the style and lyrics of a song in Create. Queue more songs while one is generating.
+- **Stems**: split a finished song into six tracks (drums, bass, vocals, guitar, piano, other) with [Demucs](https://github.com/facebookresearch/demucs) (`htdemucs_6s`). In Library, open a song's menu and choose **Extract Stems**; the files (FLAC, same sample rate as the song) open in Finder, in the song's `stems` folder. A 2.5 minute song takes about 15 seconds. Upstream notes that the piano stem of this model is the least accurate.
 
 ## System requirements
 

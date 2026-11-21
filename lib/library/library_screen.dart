@@ -30,7 +30,7 @@ String formatDate(DateTime d, [DateTime? now]) {
   return '${l.year}-${_two(l.month)}-${_two(l.day)}';
 }
 
-enum _Act { rename, reuse, export, score, delete, cancel }
+enum _Act { rename, reuse, export, score, stems, delete, cancel }
 
 // Title takes the rest; Created, Length, like and menu are fixed and sit at the right edge. The table starts at the
 // screen title's 28 px edge (no row padding), 20 px gutter before Created.
@@ -96,13 +96,24 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   List<PopupMenuEntry<_Act>> _menu(Song s) {
-    final live = s.status == SongStatus.queued || s.status == SongStatus.generating;
+    // A song whose stems are being made is live too: deleting it would leave the engine writing into a removed folder.
+    final live = s.status == SongStatus.queued || s.status == SongStatus.generating || widget.queue.stemming.contains(s.id);
     final done = s.status == SongStatus.done;
     return [
       PopupMenuItem(value: _Act.rename, child: Text(t.library.menu.rename)),
       PopupMenuItem(value: _Act.reuse, child: Text(t.library.menu.reuse)),
       if (done) PopupMenuItem(value: _Act.export, child: Text(t.library.menu.export)),
       if (done) PopupMenuItem(value: _Act.score, child: Text(t.library.menu.score)),
+      if (done && s.audio != null)
+        PopupMenuItem(
+          value: _Act.stems,
+          enabled: !widget.queue.stemming.contains(s.id),
+          child: Text(widget.queue.stemming.contains(s.id)
+              ? t.library.menu.stemsRunning
+              : Directory(_stemsDir(s)).existsSync()
+              ? t.library.menu.showStems
+              : t.library.menu.stems),
+        ),
       const PopupMenuDivider(),
       if (live) PopupMenuItem(value: _Act.cancel, child: Text(t.library.menu.cancel)),
       if (!live) PopupMenuItem(value: _Act.delete, child: Text(t.library.menu.delete)),
@@ -119,10 +130,27 @@ class _LibraryScreenState extends State<LibraryScreen> {
         await _export(s);
       case _Act.score:
         await _showScore(s);
+      case _Act.stems:
+        await _stems(s);
       case _Act.delete:
         await _confirmDelete(s);
       case _Act.cancel:
         widget.queue.cancel(s.id);
+    }
+  }
+
+  String _stemsDir(Song s) => p.join(lib.dirOf(s.id), 'stems');
+
+  /// Opens the song's stems folder in Finder, splitting the song first when it has none (stems.py writes the folder
+  /// only once all six files are there, so an existing folder is complete).
+  Future<void> _stems(Song s) async {
+    final messenger = ScaffoldMessenger.of(context);
+    var dir = _stemsDir(s);
+    try {
+      if (!Directory(dir).existsSync()) dir = await widget.queue.stems(s.id);
+      await Process.run('open', [dir]);
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(t.library.stemsFailed(message: '$e'.replaceFirst('Exception: ', '')))));
     }
   }
 
