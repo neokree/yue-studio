@@ -132,6 +132,17 @@ void main() {
     expect(rem('vae', 4, 4, 5).inSeconds, 0);
   });
 
+  test('the length read from the score replaces the guess from the lyrics', () async {
+    final e = ref();
+    await e.load();
+    e.modelLoaded = true;
+    Duration rem(double? score) => e.remainingFor(
+        stage: 'semantic', done: 0, elapsedInStage: Duration.zero, lyrics: songLyrics, scoreSeconds: score);
+    expect(e.expectedSeconds(lyrics: songLyrics, sourceSeconds: 95, scoreSeconds: 48), 48);
+    expect(rem(70).inSeconds, closeTo(rem(null).inSeconds, 2), reason: 'lyrics guess is 70 s');
+    expect(rem(48), lessThan(rem(null) * 0.6), reason: 'a 48 s song is much quicker than the 70 s guess');
+  });
+
   test('fake engine runs never calibrate; estimate is deterministic', () async {
     final e = ref();
     await e.load();

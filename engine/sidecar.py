@@ -43,7 +43,8 @@ def emit(**event):
 # ---------------------------------------------------------------- job loop
 
 def progress_for(job):
-    return lambda stage, done, total: emit(type="progress", job=job, stage=stage, done=done, total=total)
+    # extra: additive fields, e.g. audio (PROTOCOL.md section 3)
+    return lambda stage, done, total, **extra: emit(type="progress", job=job, stage=stage, done=done, total=total, **extra)
 
 
 def run_job(req):

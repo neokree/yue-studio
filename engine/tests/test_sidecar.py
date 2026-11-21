@@ -275,6 +275,9 @@ def test_real_mode_transcribe_without_install_errors(tmp_path):
 class FakePipeline:
     """Same __call__ signature as YuE2Pipeline at 1116bea: cancelled(), on_token(phase, token), on_progress(stage, done, total)."""
 
+    class tokenizer:
+        decode = staticmethod(lambda ids: backends.FAKE_ABC)  # 4 bars of 4/4 at 100 bpm = 9.6 s
+
     def __call__(self, style=None, lyrics=None, *, tags=None, abc_sampling=None, semantic_sampling=None,
                  cancelled=None, on_token=None, on_progress=None, **kwargs):
         assert set(kwargs) <= {"cot", "seed", "abc", "cfg_scale", "id"}, kwargs  # SongRequest(**kwargs)
@@ -305,9 +308,10 @@ def test_yue2_backend_reports_progress_through_pipeline_callbacks(tmp_path, monk
     monkeypatch.delenv("YUE2_STUDIO_MANIFEST", raising=False)
     b = backends.Yue2Backend(tmp_path)
     b.pipe = FakePipeline()
-    events = []
+    events, extras = [], []
     r = b.generate({"out": str(tmp_path / "o"), "seed": 5, "cot": "full", "style": "s", "lyrics": "l"},
-                   lambda *a: events.append(a), threading.Event())
+                   lambda *a, **extra: (events.append(a), extras.append(extra)), threading.Event())
+    assert [x for x in extras if x] == [{"audio": 9.6}] and extras[events.index(("semantic", 0, None))]  # length, once
     assert list(dict.fromkeys(e[0] for e in events)) == ["abc", "semantic", "nar", "vae"]  # pipe preloaded: no load event
     assert [e[1:] for e in events if e[0] == "abc"] == [(0, None), (25, None), (50, None)]
     assert [e[1:] for e in events if e[0] == "semantic"] == [(0, None), (25, None), (50, None)]
@@ -389,3 +393,10 @@ def test_mps_watermarks():
         assert 0 < low < h <= 1.0
         assert h * ws >= 10.6  # the real 11 GB peak fits (16 GB: the whole working set)
     assert backends.mps_watermarks(float("inf")) == {}
+
+
+def test_abc_seconds():
+    assert backends.abc_seconds(backends.FAKE_ABC) == pytest.approx(9.6)
+    two_voices = "M:4/4\nQ:1/4=120\nV: Vocal\nZ4|\nV: Ins\nc8|c8|\nV: Vocal\nM:2/4\n\"G\"c4|c4|]\n"
+    assert backends.abc_seconds(two_voices) == pytest.approx(10.0)  # Vocal: 4 bars of 4/4 + 2 of 2/4 = 20 beats at 120
+    assert backends.abc_seconds("no score here") is None

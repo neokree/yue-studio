@@ -80,6 +80,7 @@ sealed class EngineEvent {
           stage: j['stage'] as String? ?? '',
           done: (j['done'] as num?)?.toInt() ?? 0,
           total: (j['total'] as num?)?.toInt(),
+          audio: (j['audio'] as num?)?.toDouble(),
         );
       case 'result':
         return ResultEvent(
@@ -113,12 +114,16 @@ class ReadyEvent extends EngineEvent {
 }
 
 class ProgressEvent extends EngineEvent {
-  const ProgressEvent({required this.job, required this.stage, required this.done, this.total});
+  const ProgressEvent({required this.job, required this.stage, required this.done, this.total, this.audio});
   final String job, stage;
   final int done;
   final int? total;
+
+  /// Song length in seconds read from the finished score; only on the first `semantic` event of a planned song.
+  final double? audio;
   @override
-  Map<String, dynamic> toJson() => {'type': 'progress', 'job': job, 'stage': stage, 'done': done, 'total': total};
+  Map<String, dynamic> toJson() =>
+      {'type': 'progress', 'job': job, 'stage': stage, 'done': done, 'total': total, if (audio != null) 'audio': audio};
 }
 
 class ResultEvent extends EngineEvent {

@@ -27,6 +27,9 @@ class _Job {
   final String id, lyrics;
   final double? sourceSeconds;
 
+  /// Song length read from the finished score (progress.audio): replaces the guess from the lyrics for the rest of the job.
+  double? scoreSeconds;
+
   /// False when cot is off (no score stage).
   final bool plan;
   final String? transcribeAudio, transcribeMode;
@@ -206,6 +209,7 @@ class JobQueue extends ChangeNotifier {
         _stageDone = e.done;
         _stageTotal = e.total;
         if (e.total == null) _tokens[e.stage] = e.done;
+        job.scoreSeconds = e.audio ?? job.scoreSeconds;
         _recompute();
       case ResultEvent() when e.job == job.id:
         _onResult(job, e);
@@ -270,6 +274,7 @@ class JobQueue extends ChangeNotifier {
       elapsedInStage: elapsed,
       lyrics: job.lyrics,
       sourceSeconds: job.sourceSeconds,
+      scoreSeconds: job.scoreSeconds,
       plan: job.plan,
     );
     _progress = max(_progress, prog.clamp(0.0, 1.0));
@@ -280,6 +285,7 @@ class JobQueue extends ChangeNotifier {
       elapsedInStage: elapsed,
       lyrics: job.lyrics,
       sourceSeconds: job.sourceSeconds,
+      scoreSeconds: job.scoreSeconds,
       plan: job.plan,
     );
     notifyListeners();

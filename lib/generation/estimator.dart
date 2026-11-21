@@ -165,7 +165,9 @@ class GenerationEstimator {
   /// Expected song length in seconds. Covers use the source length.
   /// Lyrics: 36.6 + 4.17 s per sung line, section tags ignored (8 lines -> 70 s, 33 lines -> 174 s), clamped to 30..300 s.
   /// No lyrics (instrumental): 120 s.
-  double expectedSeconds({String lyrics = '', double? sourceSeconds}) {
+  /// [scoreSeconds]: the length the engine read from the finished score (progress.audio); it wins once known.
+  double expectedSeconds({String lyrics = '', double? sourceSeconds, double? scoreSeconds}) {
+    if (scoreSeconds != null && scoreSeconds > 0) return scoreSeconds;
     if (sourceSeconds != null && sourceSeconds > 0) return sourceSeconds;
     final lines = lyrics.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty && !RegExp(r'^\[.*\]$').hasMatch(l)).length;
     if (lines == 0) return _instrumentalSeconds;
@@ -230,9 +232,10 @@ class GenerationEstimator {
     required Duration elapsedInStage,
     required String lyrics,
     double? sourceSeconds,
+    double? scoreSeconds,
     bool plan = true,
   }) {
-    final audio = expectedSeconds(lyrics: lyrics, sourceSeconds: sourceSeconds);
+    final audio = expectedSeconds(lyrics: lyrics, sourceSeconds: sourceSeconds, scoreSeconds: scoreSeconds);
     if (stage == 'transcribe') return _fraction(stage, done, total, elapsedInStage, audio, audio * transcribePerSecond);
     final steps = _steps(audio, plan: plan, cover: sourceSeconds != null, current: stage);
     final all = steps.fold<double>(0, (x, e) => x + e.$2);
@@ -252,9 +255,10 @@ class GenerationEstimator {
     required Duration elapsedInStage,
     required String lyrics,
     double? sourceSeconds,
+    double? scoreSeconds,
     bool plan = true,
   }) {
-    final audio = expectedSeconds(lyrics: lyrics, sourceSeconds: sourceSeconds);
+    final audio = expectedSeconds(lyrics: lyrics, sourceSeconds: sourceSeconds, scoreSeconds: scoreSeconds);
     final el = elapsedInStage.inMilliseconds / 1000;
     if (stage == 'transcribe') {
       return Duration(milliseconds: (math.max(0, audio * transcribePerSecond - el) * 1000).round());

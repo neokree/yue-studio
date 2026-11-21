@@ -116,6 +116,9 @@ void main() {
     final seen = <double>[];
     q.addListener(() => seen.add(q.progress));
     engine.emit(ProgressEvent(job: a, stage: 'semantic', done: 200));
+    final guess = q.remaining!;
+    engine.emit(ProgressEvent(job: a, stage: 'semantic', done: 200, audio: 20)); // the score says 20 s: far less work left
+    expect(q.remaining, lessThan(guess));
     final p1 = q.progress;
     expect(p1, greaterThan(0));
     engine.emit(ProgressEvent(job: a, stage: 'nar', done: 2, total: 4));

@@ -74,6 +74,27 @@ def mps_watermarks(mem_gb):
     return {"PYTORCH_MPS_HIGH_WATERMARK_RATIO": f"{high:.3f}", "PYTORCH_MPS_LOW_WATERMARK_RATIO": f"{0.7 * high:.3f}"}
 
 
+def abc_seconds(abc):
+    """Song length in seconds from a score: bars x meter / tempo, longest voice (173.6 s song -> 175.8). None if unreadable.
+    ponytail: counts bars, not note lengths, so a pickup or a short last bar counts as full; sum durations if that matters."""
+    import re
+    frac = lambda s: int(s[0]) / int(s[1])  # noqa: E731
+    meter, tempo, voice, total = 1.0, None, "", {}
+    for line in abc.splitlines():
+        line = line.strip()
+        if m := re.match(r"M:\s*(\d+)/(\d+)", line):
+            meter = frac(m.groups())
+        elif m := re.match(r"Q:\s*(?:(\d+)/(\d+)\s*=\s*)?(\d+)", line):
+            tempo = tempo or int(m[3]) * (frac(m.groups()[:2]) if m[1] else 0.25)  # whole notes per minute; first one wins
+        elif m := re.match(r"V:\s*(\S+)", line):
+            voice = m[1]
+        elif line and not re.match(r"[A-Za-z]:|%", line):
+            bars = sum(int(m[1] or 1) if (m := re.fullmatch(r"Z(\d*)", b)) else 1
+                       for b in re.sub(r'"[^"]*"|[\[\]:\s]', "", line).split("|") if b)
+            total[voice] = total.get(voice, 0.0) + bars * meter
+    return max(total.values()) / tempo * 60 if tempo and total else None
+
+
 def nap(cancelled, seconds):
     if cancelled.wait(seconds):
         raise Cancelled()
@@ -231,12 +252,21 @@ class Yue2Backend(Backend):
             t["load"] = time.monotonic() - started
             if cancelled.is_set():
                 raise Cancelled()
-        counts = {}
+        counts, score = {}, []
 
-        def on_token(phase, _token):  # phases "abc" and "semantic"; one event per 25 tokens (PROTOCOL.md section 3)
+        def on_token(phase, token):  # phases "abc" and "semantic"; one event per 25 tokens (PROTOCOL.md section 3)
             counts[phase] = n = counts.get(phase, 0) + 1
+            if phase == "abc":
+                score.append(token)
             if n == 1 or n % 25 == 0:
-                on_progress(phase, n if n > 1 else 0, None)
+                extra = {}
+                if n == 1 and phase == "semantic" and score:  # the score is done: its bars and tempo give the song length
+                    try:
+                        seconds = abc_seconds(self.pipe.tokenizer.decode(score))
+                        extra = {"audio": round(seconds, 1)} if seconds else {}
+                    except Exception:  # the estimate is a nicety, never fail a job over it
+                        pass
+                on_progress(phase, n if n > 1 else 0, None, **extra)
 
         request = dict(style=req["style"], lyrics=req.get("lyrics", ""), cot=req["cot"], seed=seed)
         if req.get("abc"):

@@ -26,7 +26,7 @@ Dart (`lib/engine/`) and Python (`engine/`) both follow this file. Change it her
 | type | fields |
 |---|---|
 | `ready` | `version` (1), `fake` (bool). Sent once, after start; the model is NOT loaded yet (loads lazily on first generate, reported as stage `load`). |
-| `progress` | `job`, `stage`, `done` (int), `total` (int or null) |
+| `progress` | `job`, `stage`, `done` (int), `total` (int or null), `audio` (additive, optional: song length in seconds read from the finished score, bars x meter / tempo, within ~4% of the real length; only on the first `semantic` event of a song whose score the engine wrote; the `GenerationEstimator` uses it instead of its guess from the lyrics) |
 | `result` | `job`, `dir` (absolute), `audio` (file name inside dir, generate only: `audio.flac` real, `audio.wav` fake), `seed` (int, generate only), `duration` (seconds, float, generate only), `timings` (generate only, additive: `{"load","abc","semantic","nar","vae"}` wall seconds per stage, floats; 0 for a stage that did not run, e.g. `load` when the model was already loaded, `abc` when `cot=off` or `abc` was given; for the `GenerationEstimator`) |
 | `error` | `job` (null if not tied to a job), `message`, `cancelled` (bool, true when the job ended because of `cancel`) |
 
