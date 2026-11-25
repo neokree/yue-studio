@@ -17,6 +17,13 @@ The YuE2 inference code (yue2-infer, https://github.com/multimodal-art-projectio
 as a dependency at a pinned commit and is not redistributed in this repository. The MLX modules call its sampling,
 prompting and acoustic-chunking functions unchanged.
 
+Instrumentals
+-------------
+engine/yue2_instrumental/ (abc_tools.py, compile_score.py, instrumentalize.py, common.py) is copied unchanged from the
+yue2-music instrumental skill v1.2.0 (skills/yue2-music/instrumental/scripts in https://github.com/multimodal-art-projection/YuE
+at commit 1116bea), MIT License, Copyright (c) 2026 yue2-music contributors; its LICENSE is in that folder.
+engine/backends.py follows the same skill's recipe for instrumentals (plan, move the Vocal notes to Ins, render).
+
 Demucs (stems)
 --------------
 Demucs (https://github.com/facebookresearch/demucs, MIT License, Copyright Meta Platforms, Inc.) is installed as a

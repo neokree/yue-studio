@@ -90,7 +90,7 @@ class _Form extends StatelessWidget {
       title: title.isEmpty ? null : title,
       style: d.style.text,
       lyrics: d.lyrics.text,
-      cot: d.cot.name,
+      cot: d.effectiveCot.name,
       seed: int.tryParse(d.seed.text.trim()),
     );
     d.watch(id);
@@ -143,7 +143,7 @@ class _Form extends StatelessWidget {
           ListenableBuilder(
             listenable: Listenable.merge([d, d.style, d.lyrics]), // d.title does not move the estimate
             builder: (context, _) {
-              final estimate = services.estimator.estimate(lyrics: d.lyrics.text, plan: d.cot != CotMode.off);
+              final estimate = services.estimator.estimate(lyrics: d.lyrics.text, plan: d.effectiveCot != CotMode.off);
               // Empty lyrics are an instrumental (the Lyrics hint says so), so only the style is required.
               final ready = d.style.text.trim().isNotEmpty;
               // Plan + seed stay tight on the left; the estimate hugs the button on the right.
@@ -157,9 +157,9 @@ class _Form extends StatelessWidget {
                     segments: [
                       (CotMode.full, t.create.planFull),
                       (CotMode.melody, t.create.planMelody),
-                      (CotMode.off, t.create.planOff),
+                      if (d.lyrics.text.trim().isNotEmpty) (CotMode.off, t.create.planOff),
                     ],
-                    selected: d.cot,
+                    selected: d.effectiveCot,
                     onChanged: d.setCot,
                   ),
                   const SizedBox(width: 8),

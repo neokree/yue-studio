@@ -104,6 +104,42 @@ def abc_seconds(abc):
     return max(total.values()) / tempo * 60 if tempo and total else None
 
 
+# Instrumentals. YuE2 has no instrumental switch: with empty lyrics it still writes a Vocal part and sings it. Upstream's
+# recipe (yue2-music skill v1.2.0, skills/yue2-music/instrumental at 1116bea): plan the score with section tags only,
+# move every Vocal note to Ins, then render that fixed score with an "Instrumental, ..., no vocals" style.
+INSTRUMENTAL_DIR = ENGINE_DIR / "yue2_instrumental"  # the skill's score tools, MIT, copied unchanged
+INSTRUMENTAL_PLAN_LYRICS = "[Intro]\n\n[Verse]\n\n[Chorus]\n\n[Outro]\n"  # upstream plan_with_model default
+
+
+def instrumental_style(style):
+    """Upstream prepare(): 'lofi, piano' -> 'Instrumental, lofi, piano, no vocals, no singing, no choir, no spoken words.'"""
+    import re
+    style = style.strip().rstrip(".,")
+    if not re.match(r"instrumental\b", style, re.I):
+        style = "Instrumental, " + style
+    for condition in ("no vocals", "no singing", "no choir", "no spoken words"):
+        if condition not in style.lower():
+            style += ", " + condition
+    return style + "."
+
+
+def instrumental_score(abc):
+    """Move a planned score's Vocal notes to Ins (upstream convert_score, the Vocal note wins where they overlap).
+    Returns (score, lyrics, cot) to render it with: the lyrics are only its section tags, cot is full if chords remain."""
+    if str(INSTRUMENTAL_DIR) not in sys.path:
+        sys.path.insert(0, str(INSTRUMENTAL_DIR))
+    from abc_tools import parse_abc
+    from instrumentalize import convert_score
+    try:
+        score, _ = convert_score(abc)
+        chords = parse_abc(score).voices["Vocal"].chords
+    except (ValueError, KeyError, TypeError) as e:
+        raise RuntimeError(f"Could not turn the score into an instrumental ({e}). Try another seed.") from e
+    labels = [line[2:] for line in score.splitlines() if line.startswith("% ")]
+    lyrics = "\n\n".join(f"[{x.title()}]" for x in labels) + ("\n" if labels else "")
+    return score, lyrics, "full" if chords else "melody"
+
+
 def run_child(cmd, env, stage, on_progress, cancelled):
     """Run an engine child process: one progress event at start, then one per ~2 s with elapsed seconds in done;
     killed on cancel (raises Cancelled). Returns (exit code, last 600 chars of its output)."""
@@ -430,7 +466,14 @@ class Yue2Backend(Backend):
         request = dict(style=req["style"], lyrics=req.get("lyrics", ""), cot=req["cot"], seed=seed)
         if req.get("abc"):
             request["abc"] = req["abc"]
+        planned = None
         try:
+            if "abc" not in request and not request["lyrics"].strip():  # instrumental (see instrumental_score)
+                style = instrumental_style(req["style"])
+                planned = self.pipe.plan(style, INSTRUMENTAL_PLAN_LYRICS, cot="melody" if req["cot"] == "melody" else "full",
+                                         seed=seed, cancelled=cancelled.is_set, on_token=on_token)
+                abc, lyrics, cot = instrumental_score(planned.abc or "")
+                request.update(style=style, lyrics=lyrics, cot=cot, abc=abc)  # the render below reuses this score as is
             song = self.pipe(**request, cancelled=cancelled.is_set, on_token=on_token, on_progress=on_progress)
         except Exception:
             if cancelled.is_set():  # the pipeline raises InterruptedError when cancelled
@@ -442,7 +485,9 @@ class Yue2Backend(Backend):
             raise Cancelled()
         song.save_artifacts(out)
         pt = song.timing  # abc/semantic are dicts with "seconds"; nar/vae are plain floats (vae includes the lazy decoder load)
-        t["abc"] = float((pt.get("abc") or {}).get("seconds", 0.0))
+        t["abc"] = float(((planned.timing if planned else pt.get("abc")) or {}).get("seconds", 0.0))
+        if planned:  # the model's own score, with its Vocal part, next to the converted score.abc
+            (out / "planned.abc").write_text(planned.abc, encoding="utf-8")
         t["semantic"] = float((pt.get("semantic") or {}).get("seconds", 0.0))
         t["nar"] = float(pt.get("nar_seconds", 0.0))
         t["vae"] = float(pt.get("vae_seconds", 0.0))

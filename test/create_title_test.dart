@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yue2_studio/create/create_draft.dart';
+import 'package:yue2_studio/engine/protocol.dart';
 import 'package:yue2_studio/theme/tokens.dart';
 
 double _lum(Color c) {
@@ -25,5 +26,12 @@ void main() {
   test('prefill carries the title', () {
     final d = CreateDraft()..prefill(title: 'City Lights', style: 's');
     expect((d.title.text, d.style.text), ('City Lights', 's'));
+  });
+
+  test('empty lyrics never send "None": an instrumental needs a score', () {
+    final d = CreateDraft()..setCot(CotMode.off);
+    expect(d.effectiveCot, CotMode.full);
+    d.lyrics.text = '[Verse]\nla';
+    expect(d.effectiveCot, CotMode.off);
   });
 }

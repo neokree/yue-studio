@@ -16,7 +16,7 @@ Dart (`lib/engine/`) and Python (`engine/`) both follow this file. Change it her
 
 | type | fields |
 |---|---|
-| `generate` | `job` (string id chosen by app), `out` (absolute dir, created by sidecar), `style`, `lyrics`, `cot` (`full` \| `melody` \| `off`), `seed` (int), `abc` (optional string: a cover score) |
+| `generate` | `job` (string id chosen by app), `out` (absolute dir, created by sidecar), `style`, `lyrics`, `cot` (`full` \| `melody` \| `off`), `seed` (int), `abc` (optional string: a cover score). Empty `lyrics` and no `abc` = instrumental: the engine plans a score (cot `off` plans `full`), moves its Vocal notes to Ins and renders that score with an "Instrumental, ..., no vocals" style; the model's own score is kept as `planned.abc` |
 | `transcribe` | `job`, `audio` (absolute path: wav/flac/mp3/ogg), `out` (absolute dir), `mode` (`full` = Close, melody + chords \| `melody` = Free, melody only) |
 | `stems` | `job`, `audio` (absolute path), `out` (absolute dir: the song's `stems/` folder) |
 | `cancel` | `job` |

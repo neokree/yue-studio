@@ -38,6 +38,7 @@ flutter:
     - engine/mlx_nar.py
     - engine/mlx_pipeline.py
     - engine/mlx_convert.py
+    - engine/yue2_instrumental/
     - engine/manifests/
     - assets/uv/
     - assets/abcjs/

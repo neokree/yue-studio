@@ -29,6 +29,10 @@ class CreateDraft extends ChangeNotifier {
     onPrefill?.call();
   }
 
+  /// The plan actually sent. Empty lyrics are an instrumental, which the engine builds from a score, so "None" means
+  /// "Melody + chords" then (the form hides "None" while the lyrics are empty).
+  CotMode get effectiveCot => cot == CotMode.off && lyrics.text.trim().isEmpty ? CotMode.full : cot;
+
   void setCot(CotMode m) {
     cot = m;
     notifyListeners();

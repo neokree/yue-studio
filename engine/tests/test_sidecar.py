@@ -354,6 +354,63 @@ def test_yue2_backend_reports_progress_through_pipeline_callbacks(tmp_path, monk
     assert r["timings"] == {"load": 0.0, "abc": 1.5, "semantic": 2.5, "nar": 3.5, "vae": 0.5}
 
 
+NATIVE_ABC = """X:1
+T:
+M:4/4
+L:1/32
+Q:1/4=100
+V: Vocal clef=treble name="Vocal Melody" snm="Vocal"
+V: Ins clef=treble name="Ins Melody" snm="Inst."
+K:C
+% verse
+V: Vocal
+"C"c8d8e8f8|"G"g32|
+V: Ins
+Z2|
+% chorus
+V: Vocal
+"F"z32|"C"z32|
+V: Ins
+a16g16|c32|
+"""
+
+
+def test_empty_lyrics_render_the_planned_score_without_its_vocal_part(tmp_path, monkeypatch):
+    """YuE2 sings the Vocal part of its own score even with no lyrics: an instrumental is planned, its Vocal notes move
+    to Ins, and only that score is rendered (upstream yue2-music instrumental recipe)."""
+    import types
+    sys.path.insert(0, str(backends.INSTRUMENTAL_DIR))
+    from abc_tools import parse_abc
+    planned, rendered = [], []
+
+    class Pipe(FakePipeline):
+        def plan(self, style, lyrics, *, cancelled=None, on_token=None, **kw):
+            planned.append(dict(style=style, lyrics=lyrics, **kw))
+            on_token("abc", 1)
+            return types.SimpleNamespace(abc=NATIVE_ABC, timing={"seconds": 4.0})
+
+        def __call__(self, **kw):
+            rendered.append(kw)
+            return super().__call__(**kw)
+
+    monkeypatch.delenv("YUE2_STUDIO_MANIFEST", raising=False)
+    b = backends.Yue2Backend(tmp_path)
+    b.pipe = Pipe()
+    r = b.generate({"out": str(tmp_path / "o"), "seed": 5, "cot": "off", "style": "lofi, piano", "lyrics": " \n"},
+                   lambda *a, **k: None, threading.Event())
+    style = "Instrumental, lofi, piano, no vocals, no singing, no choir, no spoken words."
+    assert planned == [dict(style=style, lyrics=backends.INSTRUMENTAL_PLAN_LYRICS, cot="full", seed=5)]  # off has no score
+    (call,) = rendered
+    score = parse_abc(call["abc"])
+    assert not score.voices["Vocal"].notes and len(score.voices["Ins"].notes) == 8  # 5 sung + 3 already on Ins
+    assert call["style"] == style and call["lyrics"] == "[Verse]\n\n[Chorus]\n" and call["cot"] == "full"
+    assert (tmp_path / "o" / "planned.abc").read_text() == NATIVE_ABC and r["timings"]["abc"] == 4.0
+    rendered.clear()
+    b.generate({"out": str(tmp_path / "p"), "seed": 5, "cot": "full", "style": "s", "lyrics": "[Verse]\nla"},
+               lambda *a, **k: None, threading.Event())
+    assert len(planned) == 1 and "abc" not in rendered[0]  # songs with words are untouched
+
+
 def test_yue2_backend_cancel_maps_to_cancelled(tmp_path, monkeypatch):
     monkeypatch.delenv("YUE2_STUDIO_MANIFEST", raising=False)
     b = backends.Yue2Backend(tmp_path)
